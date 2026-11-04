@@ -166,8 +166,24 @@ def tag_counts() -> list[tuple[str, int]]:
         c = Counter()
         for r in conn().execute("SELECT tags FROM links"):
             c.update(json.loads(r["tags"]))
-        order = {"type": 0, "topic": 1, "use": 2}
-        return sorted(c.items(), key=lambda kv: (order.get(kv[0].split("/")[0], 3), -kv[1], kv[0]))
+        def group(t):
+            return {"type": 0, "topic": 1}.get(t.split("/")[0], 3) if "/" in t else 2
+        return sorted(c.items(), key=lambda kv: (group(kv[0]), -kv[1], kv[0]))
+
+
+def topic_labels(limit: int = 150) -> list[str]:
+    """Most-used AI topic labels (without the 'topic/' prefix), for reuse by the AI."""
+    return [t.split("/", 1)[1] for t, _ in sorted(
+        ((t, n) for t, n in tag_counts() if t.startswith("topic/")), key=lambda kv: -kv[1])[:limit]]
+
+
+def mark_all_pending() -> list[int]:
+    with _lock:
+        c = conn()
+        ids = [r["id"] for r in c.execute("SELECT id FROM links ORDER BY id")]
+        c.execute("UPDATE links SET status='pending', error=''")
+        c.commit()
+        return ids
 
 
 def count() -> int:

@@ -10,8 +10,9 @@ mcp = MCPServer(
     name="ClosedTabs",
     instructions=(
         "ClosedTabs is the user's personal library of saved links (articles, tools, GitHub repos, "
-        "papers...). Each link has labels like type/tool, topic/neuromarketing, use/client-work and "
-        "a short summary. Use search_links to find things (try synonyms and tag filters if the first "
+        "papers...). Each link has one type/ label (e.g. type/tool, type/company), topic/ labels the AI "
+        "derived from the page (e.g. topic/eye-tracking), the owner's own labels without a prefix "
+        "(e.g. project-delia), and a short summary. Use search_links to find things (try synonyms and tag filters if the first "
         "search is thin), get_link to read a page's saved text, and add_link to save new links. "
         "Always give the user the URL of anything you recommend."
     ),
@@ -31,7 +32,7 @@ def search_links(query: str = "", tag: str = "", limit: int = 15) -> list[dict]:
 
     Args:
         query: words to look for, e.g. "landing page a/b testing". Empty = newest first.
-        tag: optional exact label such as "type/tool", "topic/fundraising", "use/try-it".
+        tag: optional exact label such as "type/tool", "topic/email-marketing", "project-delia".
         limit: max results (1-50).
     """
     return [_brief(l) for l in db.search(query, tag, limit=max(1, min(limit, 50)))]

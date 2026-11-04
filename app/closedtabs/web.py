@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import db, enrich, providers
+from . import db, enrich, providers, taxonomy
 from .mcp_tools import mcp
 from .urls import parse_bookmarks_html, parse_text
 
@@ -51,15 +51,20 @@ def _back(q: str = "", tag: str = "", msg: str = "") -> RedirectResponse:
     return RedirectResponse("/library" + (f"?{urlencode(params)}" if params else ""), status_code=303)
 
 
-def _save_many(items: list[tuple[str, str]], note: str = "") -> tuple[int, int]:
+def _save_many(items: list[tuple[str, str]], note: str = "", labels: list[str] | None = None) -> tuple[int, int]:
     added = dup = 0
     for url, title in items:
         link_id, created = db.add(url, title=title, note=note)
         if created:
             added += 1
+            if labels:
+                db.update(link_id, tags=labels)
             enrich.worker.submit(link_id)
         else:
             dup += 1
+            if labels:  # already saved: just add the new labels to it
+                old = db.get(link_id)["tags"]
+                db.update(link_id, tags=sorted(set(old) | set(labels)))
     return added, dup
 
 
@@ -82,15 +87,15 @@ def library(request: Request, q: str = "", tag: str = "", msg: str = ""):
     links = db.search(q, tag)
     return templates.TemplateResponse(request, "library.html", {
         "links": links, "q": q, "tag": tag, "msg": msg, "tags": db.tag_counts(),
-        "total": db.count(), "ai": enrich.ai_enabled(),
+        "total": db.count(), "ai": enrich.ai_enabled(), "all_labels": [t for t, _ in db.tag_counts()],
         "processing": any(l["status"] == "pending" for l in links),
     })
 
 
 @app.post("/add")
-def add(text: str = Form(""), note: str = Form("")):
+def add(text: str = Form(""), note: str = Form(""), labels: str = Form("")):
     items = parse_text(text)
-    added, dup = _save_many(items, note.strip())
+    added, dup = _save_many(items, note.strip(), taxonomy.own_labels(labels))
     return _back(msg=_msg(added, dup))
 
 
@@ -112,8 +117,7 @@ def detail(request: Request, link_id: int):
 
 @app.post("/links/{link_id}/edit")
 def edit(link_id: int, tags: str = Form(""), note: str = Form("")):
-    clean = sorted({t.strip().lower() for t in tags.replace("\n", ",").split(",") if t.strip()})
-    db.update(link_id, tags=clean, note=note.strip())
+    db.update(link_id, tags=sorted(taxonomy.own_labels(tags)), note=note.strip())
     return RedirectResponse(f"/links/{link_id}", status_code=303)
 
 
@@ -122,6 +126,16 @@ def retry(link_id: int):
     db.update(link_id, status="pending", error="")
     enrich.worker.submit(link_id)
     return RedirectResponse(f"/links/{link_id}", status_code=303)
+
+
+@app.post("/relabel-all")
+def relabel_all():
+    if not enrich.ai_enabled():
+        return _back(msg="AI is off. Add an AI key first (see the guide).")
+    ids = db.mark_all_pending()
+    for link_id in ids:
+        enrich.worker.submit(link_id)
+    return _back(msg=f"Re-labelling {len(ids)} links. This can take a while; the page updates by itself.")
 
 
 @app.post("/links/{link_id}/delete")

@@ -18,7 +18,7 @@
   {% endif %}
 
   <form class="box" action="/links/{{ link.id }}/edit" method="post">
-    <h3>Labels <small class="muted">(comma separated)</small></h3>
+    <h3>Labels <small class="muted">(comma separated. Add your own, e.g. project-delia, client. The AI never removes those.)</small></h3>
     <input name="tags" value="{{ link.tags|join(', ') }}">
     <h3>My note</h3>
     <textarea name="note" rows="3">{{ link.note }}</textarea>

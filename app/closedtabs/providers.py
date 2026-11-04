@@ -173,10 +173,12 @@ def _parse_json(text: str) -> dict:
     return taxonomy.normalize(data)
 
 
-def label(url: str, page: dict, ai_chars: int = 15_000, note: str = "") -> dict:
-    """Return {type, topics, uses, summary} using whichever provider is configured."""
+def label(url: str, page: dict, ai_chars: int = 15_000, note: str = "",
+          known: list[str] | None = None) -> dict:
+    """Return {type, topics, summary} using whichever provider is configured."""
     body = (
-        (f"Owner's note about why they saved it: {note}\n\n" if note else "")
+        (f"Existing labels: {', '.join(known)}\n\n" if known else "")
+        + (f"Owner's note about why they saved it: {note}\n\n" if note else "")
         + f"<page>\nURL: {url}\nTitle: {page.get('title', '')}\n"
         f"Description: {page.get('description', '')}\n\n{(page.get('content') or '')[:ai_chars]}\n</page>"
     )

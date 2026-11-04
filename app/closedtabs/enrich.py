@@ -123,7 +123,7 @@ def enrich(link_id: int) -> None:
     fields = dict(page, summary=page["description"], status="done", error=fetch_error)
     if ai_enabled():
         try:
-            result = providers.label(url, page, AI_CHARS, note=link["note"])
+            result = providers.label(url, page, AI_CHARS, note=link["note"], known=db.topic_labels())
             fields["summary"] = result["summary"] or page["description"]
             # Replace earlier AI labels (type/ topic/ use/); keep labels the owner typed by hand.
             own = {t for t in link["tags"] if not t.startswith(taxonomy.AI_PREFIXES)}

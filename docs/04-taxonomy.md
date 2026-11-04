@@ -1,38 +1,19 @@
-# 04 · Label system (taxonomy)
+# 04 · Label system
 
-The idea: a **small set of label families** ("faceted tags") instead of
-hundreds of random tags. Every item gets *one* `type`, *1–3* `topic`s, and
-*0–2* `use`s. This makes filtering predictable for you and for Claude.
+Every link can carry three kinds of labels:
 
-## Families
+| Kind | Looks like | Who sets it | Notes |
+|---|---|---|---|
+| **Type** | `type/company` | AI (you can change it) | Exactly one, from a short fixed list: tool, company, github-repo, article, research-paper, video, podcast, course, template, dataset, newsletter, inspiration, reference-docs, other |
+| **Topics** | `permanent-makeup`, `eye-tracking`, `oradea` | AI, **from the page content** | 2–4 short lowercase labels. The AI reuses your existing topics when they fit, so they don't sprawl. |
+| **My labels** | `project-delia`, `client`, `workshop` | **You** | Add as many as you like, comma separated, when saving or on the details page. The AI never removes them. Shown with an outline. |
 
-**`type/`: what it is** (exactly one)
-`type/tool` · `type/company` · `type/github-repo` · `type/article` · `type/research-paper` ·
-`type/video` · `type/podcast` · `type/course` · `type/template` ·
-`type/dataset` · `type/newsletter` · `type/inspiration` · `type/reference-docs`
+## Why this split
+- *Type* stays fixed so "show me all tools" always works.
+- *Topics* follow what you actually save. No pre-made list to maintain.
+- *My labels* hold what only you know: projects, clients, intentions ("try-it", "for-newsletter").
 
-**`topic/`: what it is about** (1–3)
-`topic/neuromarketing` · `topic/behavioral-science` · `topic/consumer-psychology` ·
-`topic/ai-creative-analysis` · `topic/ai-tools` · `topic/growth-strategy` ·
-`topic/go-to-market` · `topic/fundraising` · `topic/performance-marketing` ·
-`topic/copywriting` · `topic/branding` · `topic/ux-research` · `topic/analytics` ·
-`topic/sustainability` · `topic/community-building` · `topic/automation` ·
-`topic/dev` · `topic/other`
-
-**`use/`: where it could help you** (0–2)
-`use/client-work` · `use/own-business` · `use/content-idea` ·
-`use/teaching-workshops` · `use/learn-later` · `use/try-it`
-
-*These are a starting point. After two weeks, review which tags the AI actually
-produced and merge, rename or add as needed.*
-
-## Where this lives in the app
-The lists and the AI instructions are in **`app/closedtabs/taxonomy.py`**. Edit the lists,
-then run the start script again. Claude can only choose labels from these lists, because
-its answer is checked against a schema. You can still type any label by hand on a link's
-details page.
-
-## Handy searches
-
-Click a label in the left sidebar to filter by it, e.g. **tool**, **try-it** or **content-idea**.
-Then type in the search bar to search within that label.
+## Changing things
+- The type list and the AI instructions are in `app/closedtabs/taxonomy.py`.
+- After changing the AI setup, use **Re-label all links** (left sidebar). Your own labels and notes are kept.
+- To merge two near-duplicate topics, edit the links in question on their details page. (A one-click merge could come later.)

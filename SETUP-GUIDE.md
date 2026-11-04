@@ -36,6 +36,9 @@ bash start.sh
 
 **One by one:** paste a link in the top box and press **Enter** (or click **Save**).
 The *"Why am I saving this?"* box is optional, but future-you will thank you.
+The *"My labels"* box is optional too: type your own labels separated by commas, e.g.
+`project-delia, client`. The AI adds its own topic labels from the page content and never
+removes yours. You can change labels later via **details**.
 
 **Several at once:** paste many links, one per line, then click **Save**.
 

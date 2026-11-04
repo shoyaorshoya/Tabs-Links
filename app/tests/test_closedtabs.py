@@ -70,10 +70,19 @@ def test_search_survives_odd_input():
     assert db.search('"unbalanced AND (') == []
 
 
-def test_to_tags_limits():
-    tags = taxonomy.to_tags({"type": "tool", "topics": ["dev", "ai-tools", "analytics", "other"],
-                             "uses": ["try-it", "try-it", "content-idea", "learn-later"], "summary": ""})
-    assert tags == ["type/tool", "topic/dev", "topic/ai-tools", "topic/analytics", "use/try-it", "use/content-idea"]
+def test_normalize_free_topics():
+    out = taxonomy.normalize({"type": "Company", "summary": " s ",
+                              "topics": ["Permanent Makeup", "#Oradea", "permanent-makeup", "topic/Beauty Salon",
+                                         "x", "eye_tracking", "extra-one"]})
+    assert out == {"type": "company", "topics": ["permanent-makeup", "oradea", "beauty-salon", "eye-tracking"],
+                   "summary": "s"}
+    assert taxonomy.normalize({"type": "nonsense", "topics": "oops"})["type"] == "other"
+    assert taxonomy.to_tags(out)[:2] == ["type/company", "topic/permanent-makeup"]
+
+
+def test_own_labels():
+    assert taxonomy.own_labels("Project Delia, client ,, client\nÉpítészet, type/Tool") == \
+        ["project-delia", "client", "építészet", "type/tool"]
 
 
 def test_enrich_with_claude(monkeypatch):
@@ -83,7 +92,7 @@ def test_enrich_with_claude(monkeypatch):
 
     def fake_create(**kw):
         sent.update(kw)
-        out = {"type": "tool", "topics": ["neuromarketing"], "uses": ["try-it"], "summary": "A test tool."}
+        out = {"type": "tool", "topics": ["landing-pages", "ab-testing"], "summary": "A test tool."}
         return SimpleNamespace(stop_reason="end_turn", content=[
             SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=json.dumps(out))])
 
@@ -93,7 +102,7 @@ def test_enrich_with_claude(monkeypatch):
     enrich.enrich(i)
     link = db.get(i)
     assert link["status"] == "done" and link["summary"] == "A test tool."
-    assert link["tags"] == ["topic/neuromarketing", "type/tool", "use/try-it"]
+    assert link["tags"] == ["topic/ab-testing", "topic/landing-pages", "type/tool"]
     assert sent["model"] == "claude-opus-5-5" and sent["fallbacks"] == "default"
     assert sent["output_config"]["format"]["schema"] == taxonomy.SCHEMA
     assert "<page>" in sent["messages"][0]["content"]
@@ -173,7 +182,7 @@ def _resp(status, payload=None, text=""):
 def test_other_provider_json_schema_and_cleanup(monkeypatch):
     _gemini_env(monkeypatch)
     sent = []
-    answer = {"type": "Tool", "topics": ["Neuromarketing", "made-up"], "uses": ["try-it"], "summary": "Gem."}
+    answer = {"type": "Tool", "topics": ["Neuromarketing", "Made Up"], "summary": "Gem."}
 
     def fake_post(payload):
         sent.append(payload)
@@ -182,7 +191,7 @@ def test_other_provider_json_schema_and_cleanup(monkeypatch):
     monkeypatch.setattr(providers, "_post_chat", fake_post)
     assert providers.provider() == "other"
     out = providers.label("https://x", {"title": "x"})
-    assert out == {"type": "tool", "topics": ["neuromarketing"], "uses": ["try-it"], "summary": "Gem."}
+    assert out == {"type": "tool", "topics": ["neuromarketing", "made-up"], "summary": "Gem."}
     assert sent[0]["response_format"]["type"] == "json_schema" and sent[0]["model"] == "some-gemini-model"
 
 
@@ -199,7 +208,7 @@ def test_other_provider_falls_back_when_json_mode_unsupported(monkeypatch):
     monkeypatch.setattr(providers, "_post_chat", fake_post)
     out = providers.label("https://x", {"title": "x"})
     assert calls == ["json_schema", "json_object", None]
-    assert out["type"] == "video" and out["topics"] == ["other"]
+    assert out["type"] == "video" and out["topics"] == []
 
 
 def test_other_provider_bad_key_message(monkeypatch):
@@ -232,27 +241,49 @@ def test_relabel_replaces_old_ai_labels_keeps_own(monkeypatch):
     monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
     seen = {}
 
-    def fake_label(url, page, ai_chars, note=""):
-        seen["note"] = note
-        return {"type": "company", "topics": ["other"], "uses": [], "summary": "A salon."}
+    def fake_label(url, page, ai_chars, note="", known=None):
+        seen["note"], seen["known"] = note, known
+        return {"type": "company", "topics": ["permanent-makeup"], "summary": "A salon."}
 
     monkeypatch.setattr(providers, "label", fake_label)
     i, _ = db.add("https://salon.example", note="Project Delia")
-    db.update(i, tags=["type/tool", "topic/neuromarketing", "project-delia"], status="done")
+    db.update(i, tags=["type/tool", "topic/neuromarketing", "use/try-it", "project-delia"], status="done")
     enrich.enrich(i)
-    assert db.get(i)["tags"] == ["project-delia", "topic/other", "type/company"]
-    assert seen["note"] == "Project Delia"
+    assert db.get(i)["tags"] == ["project-delia", "topic/permanent-makeup", "type/company"]
+    assert seen["note"] == "Project Delia" and seen["known"] == ["neuromarketing"]
 
 
-def test_normalize_drops_other_when_real_topic_present():
-    out = taxonomy.normalize({"type": "company", "topics": ["other", "branding", "branding"], "uses": []})
-    assert out["topics"] == ["branding"]
+def test_known_labels_reach_prompt(monkeypatch):
+    _gemini_env(monkeypatch)
+    sent = []
+    monkeypatch.setattr(providers, "_post_chat", lambda p: sent.append(p) or _resp(
+        200, {"choices": [{"message": {"content": '{"type":"company","topics":["beauty"],"summary":"s"}'}}]}))
+    providers.label("https://x", {"title": "x"}, known=["beauty", "oradea"])
+    assert "Existing labels: beauty, oradea" in sent[0]["messages"][1]["content"]
 
 
 def test_note_reaches_prompt(monkeypatch):
     _gemini_env(monkeypatch)
     sent = []
     monkeypatch.setattr(providers, "_post_chat", lambda p: sent.append(p) or _resp(
-        200, {"choices": [{"message": {"content": '{"type":"company","topics":["other"],"uses":[],"summary":"s"}'}}]}))
+        200, {"choices": [{"message": {"content": '{"type":"company","topics":["salon"],"summary":"s"}'}}]}))
     providers.label("https://x", {"title": "x"}, note="Project Delia")
     assert "Project Delia" in sent[0]["messages"][1]["content"]
+
+
+def test_web_own_labels_and_relabel_all(monkeypatch):
+    from fastapi.testclient import TestClient
+    from closedtabs import web
+
+    monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
+    c = TestClient(web.app)  # no lifespan: startup already ran once in test_web_flow
+    if True:
+        c.post("/add", data={"text": "https://a.example", "labels": "Project Delia, client"})
+        i = db.search("")[0]["id"]
+        assert {"project-delia", "client"} <= set(db.get(i)["tags"])
+        c.post("/add", data={"text": "https://a.example", "labels": "later"})   # duplicate: labels merge
+        assert "later" in db.get(i)["tags"]
+        r = c.get("/library")
+        assert "my labels" in r.text and "Re-label all" not in r.text            # AI off: no button
+        r = c.post("/relabel-all", follow_redirects=False)
+        assert "AI+is+off" in r.headers["location"]

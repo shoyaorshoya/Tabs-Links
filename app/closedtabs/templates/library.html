@@ -14,7 +14,7 @@
     <a href="/library" class="side-link {% if not tag %}active{% endif %}">All links <span>{{ total }}</span></a>
     {% set ns = namespace(group="") %}
     {% for t, n in tags %}
-      {% set g = t.split("/")[0] if "/" in t else "other" %}
+      {% set g = {"type": "type", "topic": "topics", "use": "older labels"}.get(t.split("/")[0], "my labels") if "/" in t else "my labels" %}
       {% if g != ns.group %}<h4>{{ g }}</h4>{% set ns.group = g %}{% endif %}
       <a href="/library?tag={{ t|urlencode }}" class="side-link {% if t == tag %}active{% endif %}">{{ t.split("/", 1)[-1] }} <span>{{ n }}</span></a>
     {% endfor %}
@@ -25,6 +25,11 @@
       </label>
     </form>
     <a class="side-link" href="/export.json">Export everything</a>
+    {% if ai and total %}
+    <form action="/relabel-all" method="post" onsubmit="return confirm('Ask the AI to label all {{ total }} links again? Your own labels and notes are kept. With a paid AI this costs a little per link.')">
+      <button class="side-link linklike" type="submit">Re-label all links</button>
+    </form>
+    {% endif %}
   </aside>
 
   <main class="content">
@@ -32,8 +37,10 @@
       <textarea name="text" rows="1" placeholder="Paste a link (or several, one per line)…" required
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"
         oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
-      <input name="note" placeholder="Why am I saving this? (optional)">
       <button class="btn" type="submit">Save</button>
+      <input name="note" placeholder="Why am I saving this? (optional)">
+      <input name="labels" list="known-labels" placeholder="My labels, comma separated (optional)">
+      <datalist id="known-labels">{% for t in all_labels %}{% if "/" not in t %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
     </form>
 
     {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
@@ -52,7 +59,7 @@
           {% if l.error %}<p class="warn">{{ l.error }}</p>{% endif %}
         {% endif %}
         {% if l.note %}<p class="note">✎ {{ l.note }}</p>{% endif %}
-        <div class="tags">{% for t in l.tags %}<a class="tag" href="/library?tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
+        <div class="tags">{% for t in l.tags %}<a class="tag {% if '/' not in t %}tag-own{% endif %}" href="/library?tag={{ t|urlencode }}">{{ t.split('/', 1)[-1] if t.startswith('topic/') else t }}</a>{% endfor %}</div>
       </div>
     </article>
     {% else %}
