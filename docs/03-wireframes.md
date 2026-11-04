@@ -2,7 +2,7 @@
 
 These are low-fidelity wireframes: they show layout and information hierarchy
 only, no colour, type or styling. They describe the experience we want, whether
-we achieve it by configuring Karakeep or by building a custom front end later.
+they guide the ClosedTabs design pass.
 
 ## Screen 1 · Home / Capture
 

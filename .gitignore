@@ -1,6 +1,7 @@
 .env
 deploy/.env
+deploy/.env.karakeep-old
 *.local.json
-tabs.txt
-tabs.html
+data/
 __pycache__/
+.pytest_cache/

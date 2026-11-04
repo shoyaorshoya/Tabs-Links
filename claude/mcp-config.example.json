@@ -1,12 +1,8 @@
 {
   "mcpServers": {
-    "karakeep": {
+    "closedtabs": {
       "command": "npx",
-      "args": ["@karakeep/mcp"],
-      "env": {
-        "KARAKEEP_API_ADDR": "https://<YOUR_SERVER_ADDR>",
-        "KARAKEEP_API_KEY": "<YOUR_KARAKEEP_API_KEY>"
-      }
+      "args": ["-y", "mcp-remote", "http://localhost:3000/mcp", "--allow-http"]
     }
   }
 }

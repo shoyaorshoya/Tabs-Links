@@ -1,99 +1,70 @@
 # Super simple setup guide
 
-Takes about 15 minutes. Steps marked ☕ are where you just wait.
+About 10 minutes. ☕ marks the steps where you just wait.
 
 ---
 
-## Part 1: Start the app
+## Part 1: Start ClosedTabs
 
-**Step 1. Open Docker Desktop.**
-Wait until the bottom-left corner shows **"Engine running"** (green). ☕
+**Step 1.** Open **Docker Desktop** and wait for **"Engine running"** (bottom left).
 
-**Step 2. Download the project.**
-Open this link while logged in to GitHub:
+**Step 2.** Download the project (log in to GitHub first):
 https://github.com/shoyaorshoya/tabs-links/archive/refs/heads/claude/zen-wozniak-ap0j7f.zip
-Unzip it, then move the folder somewhere easy, such as **Documents**.
+Unzip it and put the folder in **Documents**.
+*Already have the older download? Replace it with this new one.*
 
-**Step 3. Open a terminal in that folder.**
-- **Mac:** open the **Terminal** app. Type `cd ` (with a space after it), **drag the folder** into the Terminal window, and press **Enter**.
-- **Windows:** open the folder, right-click an empty spot, and choose **Open in Terminal**.
+**Step 3.** Open **Terminal**, type `cd ` (with a space), **drag the folder** into the window, and press **Enter**.
 
-**Step 4. Copy, paste, and press Enter:**
-- **Mac:**
-  ```
-  bash start.sh
-  ```
-- **Windows:**
-  ```
-  powershell -ExecutionPolicy Bypass -File .\start.ps1
-  ```
-The first run downloads about 1–2 GB. ☕ (5–10 min)
-When it's done, your browser opens **http://localhost:3000**.
+**Step 4.** Paste this and press **Enter**:
+```
+bash start.sh
+```
+☕ The first time takes a few minutes. Then your browser opens **http://localhost:3000**.
+*If you ran the earlier Karakeep version, this also removes it automatically.*
 
-**Step 5. Create your account.**
-Click **Sign up** and enter your name, email and a password.
-The first account becomes the admin, which is you. 🎉
+**Step 5.** Click **Enter**. That's it: no account, no password. 🎉
 
 ---
 
-## Part 2: Move your open tabs in
+## Part 2: Add links
 
-**Step 6. Bookmark all your tabs at once (Chrome).**
-Press **Cmd + Shift + D** (Mac) or **Ctrl + Shift + D** (Windows).
-Name the folder "Tabs to sort" and click **Save**.
-*You can close those tabs now. Yes, really.* 😌
+**One by one:** paste a link in the top box and press **Enter** (or click **Save**).
+The *"Why am I saving this?"* box is optional, but future-you will thank you.
 
-**Step 7. Export them.**
-Go to `chrome://bookmarks`, click the **⋮** menu (top right), choose **Export bookmarks**, and save the file.
+**Several at once:** paste many links, one per line, then click **Save**.
 
-**Step 8. Import them.**
-In the app at localhost:3000, click your **profile icon** and open **Settings → Import**.
-Choose **Import bookmarks from HTML file** and pick the file from Step 7. ☕
+**All your open tabs:**
+1. In Chrome, press **Cmd + Shift + D** and save all tabs into a folder, e.g. "Tabs to sort".
+2. Go to `chrome://bookmarks`, click **⋮**, then **Export bookmarks**.
+3. In ClosedTabs, click **Import bookmarks file…** (left side) and choose that file.
+4. Close those tabs. Really. 😌
 
----
-
-## Part 3: Save new links in one click
-
-**Step 9. Install the browser extension.**
-- Chrome: https://chromewebstore.google.com/detail/karakeep/kgcjekpmcjjogibpjebkhaanilehneje
-- Firefox: https://addons.mozilla.org/en-US/firefox/addon/karakeep/
-
-Click the extension icon. For the server address, enter `http://localhost:3000`, then log in.
-From now on, one click on the icon saves the page you're on.
+Each link shows *"⏳ Reading the page…"* for a few seconds, then fills in by itself.
 
 ---
 
-## Part 4 (when you're ready): Turn on AI labels and descriptions
+## Part 3: Switch on AI labels + descriptions
 
-**Step 10.** Get a Claude API key at https://platform.claude.com, under **API keys**.
+**Step 6.** Get a Claude API key at https://platform.claude.com, under **API keys**.
 
-**Step 11.** In the project folder, open `deploy/.env` with any text editor (TextEdit or Notepad).
-Find the line `# OPENAI_API_KEY=sk-ant-paste_your_key_here`.
-Delete the `# ` at the start and replace the placeholder with your key. Save the file.
-*(On Mac the file may be hidden. Press **Cmd + Shift + .** in Finder to show it.)*
+**Step 7.** In Finder, open the project folder, then the **deploy** folder.
+Press **Cmd + Shift + .** to show hidden files, and open **.env** with TextEdit.
 
-**Step 12.** Run Step 4 again.
+**Step 8.** Paste your key right after `ANTHROPIC_API_KEY=` (no spaces). Save the file.
 
-**Step 13.** In the app, go to **Settings → AI** and paste in the two prompts from `docs/04-taxonomy.md`.
-New links will now get your labels and a short description automatically.
-**Step 14.** To label the links you already imported, open **Admin → Background Jobs** and click
-**Regenerate AI Tags for All Bookmarks**, then **Regenerate AI Summaries for All Bookmarks**. ☕
+**Step 9.** Run Step 4 again.
+
+New links now get labels and a summary. For links saved before the key, open one,
+click **details**, then **Re-read page & re-label**.
+
+*Cost: roughly 1–2 cents per link with the default model. For about 40× cheaper, change
+`CLAUDE_MODEL=claude-opus-5-5` to `CLAUDE_MODEL=claude-haiku-5-5` in the same file.*
 
 ---
 
-## Adding links one by one
+## Part 4: Connect Claude
 
-Pick whichever is handiest:
-
-1. **Paste it in the app.** Open localhost:3000, click the **NEW ITEM** box at the top, paste the link, and press **Enter**.
-   *If you paste several links (one per line), it asks whether to save them as separate bookmarks. Choose yes.*
-2. **Extension button.** On any page, click the extension icon.
-3. **Keyboard shortcut.** On any page, press **Ctrl + Shift + E**, the extension's shortcut. It may be Cmd + Shift + E on Mac. You can change it at `chrome://extensions/shortcuts`.
-4. **Ask Claude** (once it's connected): *"Save this link: https://…"*
-5. **From your phone:** the Karakeep app for [iOS](https://apps.apple.com/us/app/karakeep-app/id6479258022) or [Android](https://play.google.com/store/apps/details?id=app.hoarder.hoardermobile) adds Karakeep to the Share button.
-   *This only works once the app runs on a server, or while the phone is on the same Wi-Fi and you use your computer's local address instead of `localhost`.*
-
-Each link gets its title, image and (with AI on) labels and a summary, usually within a minute.
+See [`claude/README.md`](claude/README.md). It's 3 small steps for the Claude desktop app.
 
 ---
 
@@ -101,11 +72,12 @@ Each link gets its title, image and (with AI on) labels and a summary, usually w
 
 | I want to… | Do this |
 |---|---|
-| Save a link | Click the extension icon |
-| Find something | Use the search bar at localhost:3000 |
-| Stop the app | Docker Desktop → **Containers** → ⏹ next to `deploy` |
-| Start it again | Docker Desktop → **Containers** → ▶ next to `deploy` (or repeat Step 4) |
+| Open ClosedTabs | Go to **http://localhost:3000** (bookmark it!) |
+| Find something | Use the search bar, or click a label on the left |
+| Fix a label or add a note | Click **details** on the link |
+| Back up everything | Click **Export everything** (left side) |
+| Stop / start it | Docker Desktop → **Containers** → ⏹ / ▶ next to **deploy** |
 
-The app only runs while Docker Desktop is open. Your saved links stay safe when it's closed.
+ClosedTabs only runs while Docker Desktop is open. Your links stay safe when it's closed.
 
-**Stuck?** Take a screenshot of the terminal and send it to me.
+**Stuck?** Screenshot the terminal and send it to me.

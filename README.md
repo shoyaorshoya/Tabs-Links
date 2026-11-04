@@ -1,73 +1,50 @@
-# Tabs → Links
+# ClosedTabs
 
-**A second brain for the tabs you keep "for later."**
-You paste a link and the system does the rest: it saves the page, gives it labels, writes a short description, and makes it searchable, both by you and by Claude.
+**Close the tab. Keep the link. Find it when you need it.**
 
-> Status: **v0, structure and wireframe.** Visual design comes later.
+Paste a link and ClosedTabs saves the page, reads it, gives it labels and a short
+description, and makes it searchable, for you and for Claude.
 
----
+- Runs **only on your computer**. No accounts, no login, no email. One **Enter** button.
+- Labels come from **your** label system (`type/`, `topic/`, `use/`). See [`docs/04-taxonomy.md`](docs/04-taxonomy.md).
+- **Claude can use it.** Ask *"what did I save about pricing psychology?"* and Claude searches your library.
 
-## The idea in one picture
+> New here? Follow **[SETUP-GUIDE.md](SETUP-GUIDE.md)**: super simple, step by step.
 
-```
-  CAPTURE                  ENRICH (automatic)            RETRIEVE
- ┌──────────────┐        ┌─────────────────────┐       ┌────────────────────────┐
- │ Browser ext. │        │ fetch page + archive │       │ Web app: search/filter │
- │ Mobile share │──URL──▶│ AI labels (your      │──────▶│ Smart lists ("Tools")  │
- │ Paste in app │        │   taxonomy)          │       │ Claude (MCP):          │
- │ Bulk: tabs → │        │ AI short summary     │       │  "find me that tool    │
- │   import     │        │ full-text index      │       │   for X…"              │
- └──────────────┘        └─────────────────────┘       └────────────────────────┘
-```
+## What it does
 
-## Decision: build on Karakeep, don't start from scratch
-
-We compared the most-starred open-source projects (details in
-[`docs/01-research-and-decision.md`](docs/01-research-and-decision.md)).
-**[Karakeep](https://github.com/karakeep-app/karakeep)** (~30k ★, very active)
-already covers about 90% of the brief:
-
-| Your requirement | Karakeep |
+| You do | ClosedTabs does |
 |---|---|
-| "I add the link only" | Browser extension, iOS/Android share sheet, web paste |
-| Gets labels | AI auto-tagging, with a custom prompt so labels follow **your** taxonomy |
-| Short description | AI auto-summary |
-| Connect with Claude | Official MCP server (`@karakeep/mcp`): Claude can search, read, save and tag |
-| Find it again | Full-text search (Meilisearch), smart lists, search query language |
-| Old tabs | Imports from browser bookmarks, Pocket, and plain URL lists (script in this repo) |
+| Paste one link, or many (one per line) | Saves it, removes tracking junk (`utm_…`), skips duplicates |
+| Nothing | Opens the page, stores its title, image, description and text |
+| Nothing (with a Claude API key) | Adds 1 `type/`, 1–3 `topic/`, 0–2 `use/` labels + a 2–3 sentence summary |
+| Search or click a label | Full-text search over titles, summaries, notes and page text |
+| Import a bookmarks file | Brings in all your old tabs/bookmarks at once |
+| Ask Claude | Claude searches, reads and saves links through the built-in MCP connector |
 
-So this repo is the **system layer** on top of it: your label taxonomy, the
-tagging prompt, the Claude setup and playbook, the tab-import tooling, deploy
-config, and the wireframes for a future custom front end.
-
-## Repo map
+## Project layout
 
 | Path | What it is |
 |---|---|
-| [`docs/01-research-and-decision.md`](docs/01-research-and-decision.md) | Options compared, and why Karakeep |
-| [`docs/02-architecture.md`](docs/02-architecture.md) | Components, data model, flows, hosting options |
-| [`docs/03-wireframes.md`](docs/03-wireframes.md) | Low-fi wireframes (structure only, no styling) |
-| [`docs/04-taxonomy.md`](docs/04-taxonomy.md) | Label system + the custom AI tagging prompt |
-| [`deploy/`](deploy/) | `docker-compose.yml` + `.env.example` (Claude as the tagging model) |
-| [`claude/`](claude/) | MCP config for Claude Desktop/Code + a "how to ask" playbook |
-| [`scripts/tabs_to_import.py`](scripts/tabs_to_import.py) | Turns a dump of open tabs into an importable bookmarks file |
+| `start.sh` / `start.ps1` | One-command start for Mac / Windows |
+| `app/closedtabs/` | The app (Python, FastAPI, SQLite) |
+| `app/closedtabs/taxonomy.py` | The label lists and the AI instructions. Edit here to change labels. |
+| `deploy/` | Docker setup + settings file (`.env`) |
+| `claude/` | How to connect Claude + things to ask |
+| `docs/` | Research, architecture, wireframes, label system |
 
-## Quick start (about 20 minutes)
+## For developers
 
-0. **New here? Follow [`SETUP-GUIDE.md`](SETUP-GUIDE.md): super simple, step by step.**
-1. **Run it.** With [Docker Desktop](https://www.docker.com/products/docker-desktop/) open, run `./start.sh` (Mac/Linux) or `.\start.ps1` (Windows). It creates `deploy/.env` with random secrets and starts everything.
-   No server? Use a one-click host instead (see the architecture doc, "Hosting").
-2. **Create your account** at `http://localhost:3000`, then go to *Settings → API keys* and create a key.
-3. **Paste the tagging prompt** from `docs/04-taxonomy.md` into *Settings → AI*.
-4. **Install capture.** Add the browser extension and the mobile app, and point them at your server.
-5. **Empty your tabs.** Copy all tab URLs into `tabs.txt`, run
-   `python3 scripts/tabs_to_import.py tabs.txt -o tabs.html`, and import `tabs.html` in *Settings → Import*.
-6. **Connect Claude.** Merge `claude/mcp-config.example.json` into your Claude Desktop config (or run the `claude mcp add` one-liner in `claude/README.md`).
-7. Ask Claude: *"What did I save about onboarding emails for SaaS?"*
+```bash
+cd app && pip install -r requirements.txt pytest && python -m pytest -q tests
+DATA_DIR=./data uvicorn closedtabs.web:app --port 3000
+```
+
+Endpoints: `/` welcome · `/library` · `/links/{id}` · `/export.json` · `/api/links?q=&tag=` · `/health` · `/mcp` (MCP, streamable HTTP).
 
 ## Roadmap
 
-- [x] v0: research, structure, taxonomy, deploy, Claude wiring, tab import
-- [ ] v1: run for 2 weeks, then tune the taxonomy based on the tags the AI actually produces
-- [ ] v2: design pass (custom front end from `docs/03-wireframes.md`, or a Karakeep theme)
-- [ ] v3: weekly "rediscovery" digest (Claude picks 5 forgotten saves related to current projects)
+- [x] v0: research, structure, label system
+- [x] v1: ClosedTabs app, local only, no login, AI labels, Claude connector
+- [ ] v2: design pass (from `docs/03-wireframes.md`)
+- [ ] v3: browser extension / one-click save, weekly "rediscovery" digest

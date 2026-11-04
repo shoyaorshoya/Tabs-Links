@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block body %}
+<main class="welcome">
+  <h1 class="logo">Closed<span>Tabs</span></h1>
+  <p class="tagline">Close the tab. Keep the link. Find it when you need it.</p>
+  <a class="btn btn-big" href="/library" autofocus>Enter</a>
+  {% if count %}<p class="muted">{{ count }} link{{ "s" if count != 1 }} saved</p>{% endif %}
+</main>
+{% endblock %}

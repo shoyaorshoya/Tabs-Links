@@ -37,7 +37,15 @@
 - ✅ No server. Claude can already talk to Notion.
 - ❌ No automatic capture or crawling. You or Claude must enrich each link manually. Search is weaker.
 
-## Decision
+## Update (same day): switched to our own app, ClosedTabs
+After trying Karakeep, the login screen made no sense for a single-user app that runs only
+on one computer, and Karakeep has no way to switch it off (only password or OAuth login).
+The app also couldn't be renamed without maintaining a fork. So we built **ClosedTabs**: a small
+app (Python + SQLite) that does only what's needed. No login, our own label system built in,
+Claude labelling via the official Anthropic SDK, and a built-in MCP connector for Claude.
+Karakeep remains a good option if the project ever needs multi-user or mobile apps.
+
+## Original decision (superseded)
 **Go with A.** It answers the brief today, and keeps **B** open: the
 wireframes in `03-wireframes.md` can later become a custom front end on top of
 Karakeep's REST API, so the backend never needs rebuilding.

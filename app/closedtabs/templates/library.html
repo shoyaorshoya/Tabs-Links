@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block head %}{% if processing %}<meta http-equiv="refresh" content="6">{% endif %}{% endblock %}
+{% block body %}
+<header class="topbar">
+  <a class="logo small" href="/">Closed<span>Tabs</span></a>
+  <form class="search" action="/library" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search your links…" aria-label="Search">
+    {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
+  </form>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <a href="/library" class="side-link {% if not tag %}active{% endif %}">All links <span>{{ total }}</span></a>
+    {% set ns = namespace(group="") %}
+    {% for t, n in tags %}
+      {% set g = t.split("/")[0] if "/" in t else "other" %}
+      {% if g != ns.group %}<h4>{{ g }}</h4>{% set ns.group = g %}{% endif %}
+      <a href="/library?tag={{ t|urlencode }}" class="side-link {% if t == tag %}active{% endif %}">{{ t.split("/", 1)[-1] }} <span>{{ n }}</span></a>
+    {% endfor %}
+    <h4>more</h4>
+    <form action="/import" method="post" enctype="multipart/form-data" class="import">
+      <label class="side-link">Import bookmarks file…
+        <input type="file" name="file" accept=".html,.htm,.txt" onchange="this.form.submit()" hidden>
+      </label>
+    </form>
+    <a class="side-link" href="/export.json">Export everything</a>
+  </aside>
+
+  <main class="content">
+    <form class="add" action="/add" method="post">
+      <textarea name="text" rows="1" placeholder="Paste a link (or several, one per line)…" required
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"
+        oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
+      <input name="note" placeholder="Why am I saving this? (optional)">
+      <button class="btn" type="submit">Save</button>
+    </form>
+
+    {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
+    {% if not ai %}<p class="hint">AI labels are off. Add your Claude API key to switch them on (see the guide).</p>{% endif %}
+    {% if q or tag %}<p class="muted">{{ links|length }} result{{ "s" if links|length != 1 }}{% if tag %} for <b>{{ tag }}</b>{% endif %}{% if q %} matching “{{ q }}”{% endif %} · <a href="/library">clear</a></p>{% endif %}
+
+    {% for l in links %}
+    <article class="card">
+      {% if l.image %}<img class="thumb" src="{{ l.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
+      <div class="card-body">
+        <a class="card-title" href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title or l.url }}</a>
+        <div class="meta">{{ l.site }} · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a></div>
+        {% if l.status == "pending" %}<p class="muted">⏳ Reading the page…</p>
+        {% else %}
+          {% if l.summary or l.description %}<p class="summary">{{ l.summary or l.description }}</p>{% endif %}
+          {% if l.error %}<p class="warn">{{ l.error }}</p>{% endif %}
+        {% endif %}
+        {% if l.note %}<p class="note">✎ {{ l.note }}</p>{% endif %}
+        <div class="tags">{% for t in l.tags %}<a class="tag" href="/library?tag={{ t|urlencode }}">{{ t }}</a>{% endfor %}</div>
+      </div>
+    </article>
+    {% else %}
+      <p class="empty">{% if q or tag %}Nothing found. Try other words.{% else %}No links yet. Paste one above to start.{% endif %}</p>
+    {% endfor %}
+  </main>
+</div>
+{% endblock %}
