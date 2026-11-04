@@ -7,7 +7,7 @@ hundreds of random tags. Every item gets *one* `type`, *1–3* `topic`s, and
 ## Families
 
 **`type/`: what it is** (exactly one)
-`type/tool` · `type/github-repo` · `type/article` · `type/research-paper` ·
+`type/tool` · `type/company` · `type/github-repo` · `type/article` · `type/research-paper` ·
 `type/video` · `type/podcast` · `type/course` · `type/template` ·
 `type/dataset` · `type/newsletter` · `type/inspiration` · `type/reference-docs`
 

@@ -225,3 +225,34 @@ def test_other_provider_out_of_credits_message(monkeypatch):
     monkeypatch.setattr(providers, "_post_chat", lambda p: _resp(402, text='{"error":"Purchase pre-paid credits"}'))
     with pytest.raises(providers.LabelError, match="out of credits"):
         providers.label("https://x", {"title": "x"})
+
+
+def test_relabel_replaces_old_ai_labels_keeps_own(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
+    seen = {}
+
+    def fake_label(url, page, ai_chars, note=""):
+        seen["note"] = note
+        return {"type": "company", "topics": ["other"], "uses": [], "summary": "A salon."}
+
+    monkeypatch.setattr(providers, "label", fake_label)
+    i, _ = db.add("https://salon.example", note="Project Delia")
+    db.update(i, tags=["type/tool", "topic/neuromarketing", "project-delia"], status="done")
+    enrich.enrich(i)
+    assert db.get(i)["tags"] == ["project-delia", "topic/other", "type/company"]
+    assert seen["note"] == "Project Delia"
+
+
+def test_normalize_drops_other_when_real_topic_present():
+    out = taxonomy.normalize({"type": "company", "topics": ["other", "branding", "branding"], "uses": []})
+    assert out["topics"] == ["branding"]
+
+
+def test_note_reaches_prompt(monkeypatch):
+    _gemini_env(monkeypatch)
+    sent = []
+    monkeypatch.setattr(providers, "_post_chat", lambda p: sent.append(p) or _resp(
+        200, {"choices": [{"message": {"content": '{"type":"company","topics":["other"],"uses":[],"summary":"s"}'}}]}))
+    providers.label("https://x", {"title": "x"}, note="Project Delia")
+    assert "Project Delia" in sent[0]["messages"][1]["content"]

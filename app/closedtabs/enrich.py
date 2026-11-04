@@ -123,9 +123,11 @@ def enrich(link_id: int) -> None:
     fields = dict(page, summary=page["description"], status="done", error=fetch_error)
     if ai_enabled():
         try:
-            result = providers.label(url, page, AI_CHARS)
+            result = providers.label(url, page, AI_CHARS, note=link["note"])
             fields["summary"] = result["summary"] or page["description"]
-            fields["tags"] = sorted(set(link["tags"]) | set(taxonomy.to_tags(result)))
+            # Replace earlier AI labels (type/ topic/ use/); keep labels the owner typed by hand.
+            own = {t for t in link["tags"] if not t.startswith(taxonomy.AI_PREFIXES)}
+            fields["tags"] = sorted(own | set(taxonomy.to_tags(result)))
         except providers.LabelError as e:
             log.warning("labelling failed for %s: %s", url, e)
             fields.update(status="error", error=str(e)[:300])
