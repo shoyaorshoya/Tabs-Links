@@ -24,6 +24,12 @@ bash start.sh
 
 **Step 5.** Click **Enter**. That's it: no account, no password. 🎉
 
+> **No Docker? Use this instead of Step 4** (needs Python 3.10+; check with `python3 --version`):
+> ```
+> bash start-local.sh
+> ```
+> Keep that Terminal window open while you use ClosedTabs. Press **Ctrl + C** to stop it.
+
 ---
 
 ## Part 2: Add links
@@ -52,7 +58,7 @@ Press **Cmd + Shift + .** to show hidden files, and open **.env** with TextEdit.
 
 **Step 8.** Paste your key right after `ANTHROPIC_API_KEY=` (no spaces). Save the file.
 
-**Step 9.** Run Step 4 again.
+**Step 9.** Stop ClosedTabs (Ctrl + C, if you use `start-local.sh`) and start it again the same way.
 
 New links now get labels and a summary. For links saved before the key, open one,
 click **details**, then **Re-read page & re-label**.
@@ -76,8 +82,8 @@ See [`claude/README.md`](claude/README.md). It's 3 small steps for the Claude de
 | Find something | Use the search bar, or click a label on the left |
 | Fix a label or add a note | Click **details** on the link |
 | Back up everything | Click **Export everything** (left side) |
-| Stop / start it | Docker Desktop → **Containers** → ⏹ / ▶ next to **deploy** |
+| Stop / start it | Docker: Docker Desktop → **Containers** → ⏹ / ▶ next to **deploy**. Without Docker: **Ctrl + C** to stop, `bash start-local.sh` to start |
 
-ClosedTabs only runs while Docker Desktop is open. Your links stay safe when it's closed.
+ClosedTabs only runs while Docker Desktop (or the `start-local.sh` window) is open. Your links stay safe when it's closed.
 
 **Stuck?** Screenshot the terminal and send it to me.

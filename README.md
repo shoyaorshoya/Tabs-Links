@@ -26,7 +26,8 @@ description, and makes it searchable, for you and for Claude.
 
 | Path | What it is |
 |---|---|
-| `start.sh` / `start.ps1` | One-command start for Mac / Windows |
+| `start.sh` / `start.ps1` | One-command start with Docker (Mac/Linux / Windows) |
+| `start-local.sh` | One-command start without Docker (Python 3.10+) |
 | `app/closedtabs/` | The app (Python, FastAPI, SQLite) |
 | `app/closedtabs/taxonomy.py` | The label lists and the AI instructions. Edit here to change labels. |
 | `deploy/` | Docker setup + settings file (`.env`) |
