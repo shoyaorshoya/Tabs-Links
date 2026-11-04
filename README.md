@@ -29,6 +29,8 @@ description, and makes it searchable, for you and for Claude.
 |---|---|
 | `start.sh` / `start.ps1` | One-command start with Docker (Mac/Linux / Windows) |
 | `start-local.sh` | One-command start without Docker (Python 3.10+) |
+| `ClosedTabs.command` | Mac: double-click to start / open |
+| `Autostart-ON.command` / `Autostart-OFF.command` | Mac: start automatically at login (background) / switch off |
 | `app/closedtabs/` | The app (Python, FastAPI, SQLite) |
 | `app/closedtabs/providers.py` | AI providers: Claude (Anthropic SDK) or any OpenAI-compatible API |
 | `app/closedtabs/commdata_csv.py` | CommData CSV export (one row per website) |

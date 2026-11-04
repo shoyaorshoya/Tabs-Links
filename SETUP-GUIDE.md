@@ -30,6 +30,20 @@ bash start.sh
 > ```
 > Keep that Terminal window open while you use ClosedTabs. Press **Ctrl + C** to stop it.
 
+## Easier starting (Mac, no Terminal)
+
+**Option A: start automatically (recommended).**
+1. Move the whole ClosedTabs folder to your **home folder** (Finder → **Go → Home**, then drag it there).
+   macOS doesn't allow background apps in iCloud Drive, Desktop, Documents or Downloads.
+2. Double-click **Autostart-ON.command** in the folder. The first time, macOS may say it's from
+   an unidentified developer: **right-click → Open → Open**.
+3. Done. ClosedTabs now runs in the background and starts by itself whenever you log in.
+   Just open **http://localhost:3000** (bookmark it!).
+   To switch it off: double-click **Autostart-OFF.command**. Your links stay.
+
+**Option B: double-click to start.** Double-click **ClosedTabs.command**. It starts ClosedTabs
+and opens the browser. If it's already running, it only opens the browser.
+
 ---
 
 ## Part 2: Add links
