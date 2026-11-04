@@ -20,7 +20,7 @@
 - **Labels are constrained.** Claude must answer in a JSON schema whose `type`, `topics` and `uses` are fixed lists (`app/closedtabs/taxonomy.py`), so labels can't sprawl.
 - **Works without AI.** Without an API key, links still get title, description, image and page text, and search works.
 - **Page text is untrusted.** It's sent to Claude inside `<page>` tags with an instruction to describe, not obey. Output is schema-constrained.
-- **Model.** `claude-opus-5-5` at low effort by default, with server-side refusal fallback. `CLAUDE_MODEL=claude-haiku-5-5` is the cheaper option.
+- **AI provider.** Claude by default (`claude-opus-5-5`, low effort, server-side refusal fallback; `CLAUDE_MODEL=claude-haiku-5-5` is cheaper), or any OpenAI-compatible API via `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` (Gemini, OpenAI, Mistral, Groq, OpenRouter, Ollama). For the latter, ClosedTabs tries strict JSON schema output, then JSON mode, then plain instructions, and always filters the answer down to the allowed labels.
 - **Your data.** One SQLite file in a Docker volume (`closedtabs-data`). *Export everything* gives you a JSON backup.
 
 ## Data model (`links` table)

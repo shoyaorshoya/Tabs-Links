@@ -51,21 +51,42 @@ Each link shows *"⏳ Reading the page…"* for a few seconds, then fills in by 
 
 ## Part 3: Switch on AI labels + descriptions
 
-**Step 6.** Get a Claude API key at https://platform.claude.com, under **API keys**.
+You need **one** AI key. Pick whichever you like:
 
-**Step 7.** In Finder, open the project folder, then the **deploy** folder.
+| Option | Where to get a key | Notes |
+|---|---|---|
+| **Claude** (default) | https://platform.claude.com → API keys | Best labels. Roughly 1–2 cents per link. |
+| **Gemini** | https://aistudio.google.com/apikey | Google offers a free tier (check their current limits). |
+| **Any other** (OpenAI, Mistral, Groq, OpenRouter…) | That provider's website | Anything "OpenAI-compatible" works |
+| **Ollama** | No key. Free and runs on your computer | Install from https://ollama.com and download a model |
+
+**Step 6.** In Finder, open the project folder, then the **deploy** folder.
 Press **Cmd + Shift + .** to show hidden files, and open **.env** with TextEdit.
+*(No .env yet? Start ClosedTabs once and it gets created.)*
 
-**Step 8.** Paste your key right after `ANTHROPIC_API_KEY=` (no spaces). Save the file.
+**Step 7.** Fill in your choice:
 
-**Step 9.** Stop ClosedTabs (Ctrl + C, if you use `start-local.sh`) and start it again the same way.
+- **Claude:** paste the key right after `ANTHROPIC_API_KEY=` (no spaces).
+- **Gemini:** fill in these three lines:
+  ```
+  LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+  LLM_API_KEY=your-gemini-key
+  LLM_MODEL=the-model-name
+  ```
+  For the model name, open https://ai.google.dev/gemini-api/docs/models and copy the exact
+  name of a current **Flash** model (fast and cheap, perfect for this).
+- **Others:** the file lists the address to use for each provider.
 
-New links now get labels and a summary. Links you saved **before** adding the key are
-labelled automatically the first time ClosedTabs starts with the key. You'll see
-"⏳ Reading the page…" on them for a little while.
+*If you fill in both Claude and Gemini, Claude is used. To switch, set `AI_PROVIDER=other`.*
 
-*Cost: roughly 1–2 cents per link with the default model. For about 40× cheaper, change
-`CLAUDE_MODEL=claude-opus-5-5` to `CLAUDE_MODEL=claude-haiku-5-5` in the same file.*
+**Step 8.** Save the file. Restart ClosedTabs (Ctrl + C, then start it again the same way).
+
+New links now get labels and a summary. Links you saved **before** adding a key are labelled
+automatically the first time ClosedTabs starts with the key. You'll see "⏳ Reading the page…"
+on them for a little while.
+
+**Check it's on:** open http://localhost:3000/health. It shows which AI and model are in use.
+If a link shows an orange message (e.g. "key rejected"), fix the .env line it names and restart.
 
 ---
 

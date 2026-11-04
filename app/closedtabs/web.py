@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import db, enrich
+from . import db, enrich, providers
 from .mcp_tools import mcp
 from .urls import parse_bookmarks_html, parse_text
 
@@ -147,7 +147,7 @@ def api_links(q: str = "", tag: str = "", limit: int = 50):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "links": db.count(), "ai": enrich.ai_enabled(), "model": enrich.model()}
+    return {"ok": True, "links": db.count(), "ai": enrich.ai_enabled(), **providers.describe()}
 
 
 # MCP endpoint (/mcp) for Claude. Mounted last so the routes above win.

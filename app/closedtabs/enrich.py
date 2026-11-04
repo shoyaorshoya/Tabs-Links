@@ -1,18 +1,15 @@
-"""Fetch a page, pull out its title/description/text, and ask Claude for labels + summary."""
+"""Fetch a page, pull out its title/description/text, and ask the AI for labels + summary."""
 from __future__ import annotations
 
-import json
 import logging
-import os
 import queue
 import threading
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
-import anthropic
 import httpx
 
-from . import db, taxonomy
+from . import db, providers, taxonomy
 
 log = logging.getLogger("closedtabs")
 
@@ -21,24 +18,8 @@ STORE_CHARS = 100_000   # text kept for search / Claude to read later
 AI_CHARS = 15_000       # text sent to the model for labelling
 UA = "Mozilla/5.0 (compatible; ClosedTabs/1.0; personal bookmark manager)"
 
-# Models that accept the server-side refusal fallback (Haiku does not).
-_FALLBACK_PREFIXES = ("claude-opus-5", "claude-fable-5", "claude-sonnet-5-5")
-
-
-def api_key() -> str:
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not key:  # accept a key left over from the earlier setup's variable name
-        legacy = os.environ.get("OPENAI_API_KEY", "").strip()
-        key = legacy if legacy.startswith("sk-ant-") else ""
-    return key
-
-
-def model() -> str:
-    return os.environ.get("CLAUDE_MODEL", "").strip() or "claude-opus-5-5"
-
-
 def ai_enabled() -> bool:
-    return bool(api_key())
+    return providers.provider() is not None
 
 
 # ── page parsing ─────────────────────────────────────────────────────
@@ -121,43 +102,6 @@ def fetch(url: str) -> dict:
     return parse_page(body.decode(encoding, errors="replace"), final_url)
 
 
-# ── Claude ───────────────────────────────────────────────────────────
-_client: anthropic.Anthropic | None = None
-
-
-def _claude() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=api_key(), max_retries=3)
-    return _client
-
-
-def label(url: str, page: dict) -> dict:
-    """Ask Claude for {type, topics, uses, summary}. Raises on API errors."""
-    body = (
-        f"<page>\nURL: {url}\nTitle: {page.get('title','')}\n"
-        f"Description: {page.get('description','')}\n\n{(page.get('content') or '')[:AI_CHARS]}\n</page>"
-    )
-    kwargs = {}
-    m = model()
-    if m.startswith(_FALLBACK_PREFIXES):
-        kwargs = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
-    resp = _claude().beta.messages.create(
-        model=m,
-        max_tokens=4000,
-        system=taxonomy.SYSTEM_PROMPT,
-        output_config={"effort": "low", "format": {"type": "json_schema", "schema": taxonomy.SCHEMA}},
-        messages=[{"role": "user", "content": body}],
-        **kwargs,
-    )
-    if resp.stop_reason == "refusal":
-        raise RuntimeError("Claude declined to label this page")
-    if resp.stop_reason == "max_tokens":
-        raise RuntimeError("Claude's answer was cut off")
-    text = next(b.text for b in resp.content if b.type == "text")
-    return json.loads(text)
-
-
 # ── pipeline ─────────────────────────────────────────────────────────
 def enrich(link_id: int) -> None:
     link = db.get(link_id)
@@ -179,16 +123,12 @@ def enrich(link_id: int) -> None:
     fields = dict(page, summary=page["description"], status="done", error=fetch_error)
     if ai_enabled():
         try:
-            result = label(url, page)
-            fields["summary"] = result["summary"].strip()
+            result = providers.label(url, page, AI_CHARS)
+            fields["summary"] = result["summary"] or page["description"]
             fields["tags"] = sorted(set(link["tags"]) | set(taxonomy.to_tags(result)))
-        except anthropic.AuthenticationError:
-            fields.update(status="error", error="Claude API key was rejected. Check ANTHROPIC_API_KEY.")
-        except anthropic.APIConnectionError:
-            fields.update(status="error", error="Couldn't reach Claude. Check the internet connection.")
-        except (anthropic.APIStatusError, RuntimeError, ValueError, StopIteration, KeyError) as e:
+        except providers.LabelError as e:
             log.warning("labelling failed for %s: %s", url, e)
-            fields.update(status="error", error=f"AI labelling failed: {e}"[:300])
+            fields.update(status="error", error=str(e)[:300])
     db.update(link_id, **fields)
 
 

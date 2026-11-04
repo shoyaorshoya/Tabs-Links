@@ -17,7 +17,7 @@ description, and makes it searchable, for you and for Claude.
 |---|---|
 | Paste one link, or many (one per line) | Saves it, removes tracking junk (`utm_…`), skips duplicates |
 | Nothing | Opens the page, stores its title, image, description and text |
-| Nothing (with a Claude API key) | Adds 1 `type/`, 1–3 `topic/`, 0–2 `use/` labels + a 2–3 sentence summary |
+| Nothing (with a Claude, Gemini or other AI key) | Adds 1 `type/`, 1–3 `topic/`, 0–2 `use/` labels + a 2–3 sentence summary |
 | Search or click a label | Full-text search over titles, summaries, notes and page text |
 | Import a bookmarks file | Brings in all your old tabs/bookmarks at once |
 | Ask Claude | Claude searches, reads and saves links through the built-in MCP connector |
@@ -29,6 +29,7 @@ description, and makes it searchable, for you and for Claude.
 | `start.sh` / `start.ps1` | One-command start with Docker (Mac/Linux / Windows) |
 | `start-local.sh` | One-command start without Docker (Python 3.10+) |
 | `app/closedtabs/` | The app (Python, FastAPI, SQLite) |
+| `app/closedtabs/providers.py` | AI providers: Claude (Anthropic SDK) or any OpenAI-compatible API |
 | `app/closedtabs/taxonomy.py` | The label lists and the AI instructions. Edit here to change labels. |
 | `deploy/` | Docker setup + settings file (`.env`) |
 | `claude/` | How to connect Claude + things to ask |

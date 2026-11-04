@@ -37,7 +37,7 @@
     </form>
 
     {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
-    {% if not ai %}<p class="hint">AI labels are off. Add your Claude API key to switch them on (see the guide).</p>{% endif %}
+    {% if not ai %}<p class="hint">AI labels are off. Add a Claude key, or any other AI provider's key, to switch them on (see the guide).</p>{% endif %}
     {% if q or tag %}<p class="muted">{{ links|length }} result{{ "s" if links|length != 1 }}{% if tag %} for <b>{{ tag }}</b>{% endif %}{% if q %} matching “{{ q }}”{% endif %} · <a href="/library">clear</a></p>{% endif %}
 
     {% for l in links %}

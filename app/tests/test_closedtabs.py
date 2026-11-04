@@ -5,7 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from closedtabs import db, enrich, taxonomy, urls
+import httpx
+
+from closedtabs import db, enrich, providers, taxonomy, urls
 
 PAGE = """<html><head><title>Fallback title</title>
 <meta property="og:title" content="AdLab: A/B test landing pages">
@@ -18,8 +20,9 @@ PAGE = """<html><head><title>Fallback title</title>
 @pytest.fixture(autouse=True)
 def fresh_db(tmp_path, monkeypatch):
     db.reset_for_tests(tmp_path)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    for v in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CLAUDE_MODEL", "AI_PROVIDER",
+              "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
+        monkeypatch.delenv(v, raising=False)
     yield
 
 
@@ -85,7 +88,7 @@ def test_enrich_with_claude(monkeypatch):
             SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=json.dumps(out))])
 
     fake = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(enrich, "_client", fake)
+    monkeypatch.setattr(providers, "_client", fake)
     i, _ = db.add("https://adlab.io")
     enrich.enrich(i)
     link = db.get(i)
@@ -116,10 +119,10 @@ def test_haiku_skips_fallbacks(monkeypatch):
         sent.update(kw)
         return SimpleNamespace(stop_reason="refusal", content=[])
 
-    monkeypatch.setattr(enrich, "_client",
+    monkeypatch.setattr(providers, "_client",
                         SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=fake_create))))
-    with pytest.raises(RuntimeError):
-        enrich.label("https://x", {"title": "x"})
+    with pytest.raises(providers.LabelError):
+        providers.label("https://x", {"title": "x"})
     assert "fallbacks" not in sent
 
 
@@ -155,3 +158,63 @@ def test_links_saved_before_key_get_labelled_on_start(monkeypatch):
     w.start()
     assert list(w.q.queue) == [i]
     assert db.get(i)["status"] == "pending" and db.get(j)["status"] == "done"
+
+
+def _gemini_env(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/")
+    monkeypatch.setenv("LLM_API_KEY", "g-key")
+    monkeypatch.setenv("LLM_MODEL", "some-gemini-model")
+
+
+def _resp(status, payload=None, text=""):
+    return httpx.Response(status, json=payload) if payload is not None else httpx.Response(status, text=text)
+
+
+def test_other_provider_json_schema_and_cleanup(monkeypatch):
+    _gemini_env(monkeypatch)
+    sent = []
+    answer = {"type": "Tool", "topics": ["Neuromarketing", "made-up"], "uses": ["try-it"], "summary": "Gem."}
+
+    def fake_post(payload):
+        sent.append(payload)
+        return _resp(200, {"choices": [{"message": {"content": "```json\n" + json.dumps(answer) + "\n```"}}]})
+
+    monkeypatch.setattr(providers, "_post_chat", fake_post)
+    assert providers.provider() == "other"
+    out = providers.label("https://x", {"title": "x"})
+    assert out == {"type": "tool", "topics": ["neuromarketing"], "uses": ["try-it"], "summary": "Gem."}
+    assert sent[0]["response_format"]["type"] == "json_schema" and sent[0]["model"] == "some-gemini-model"
+
+
+def test_other_provider_falls_back_when_json_mode_unsupported(monkeypatch):
+    _gemini_env(monkeypatch)
+    calls = []
+
+    def fake_post(payload):
+        calls.append(payload.get("response_format", {}).get("type"))
+        if len(calls) < 3:
+            return _resp(400, text="response_format not supported")
+        return _resp(200, {"choices": [{"message": {"content": 'Sure! {"type":"video","topics":[],"uses":[],"summary":"S"}'}}]})
+
+    monkeypatch.setattr(providers, "_post_chat", fake_post)
+    out = providers.label("https://x", {"title": "x"})
+    assert calls == ["json_schema", "json_object", None]
+    assert out["type"] == "video" and out["topics"] == ["other"]
+
+
+def test_other_provider_bad_key_message(monkeypatch):
+    _gemini_env(monkeypatch)
+    monkeypatch.setattr(providers, "_post_chat", lambda p: _resp(401, text="nope"))
+    with pytest.raises(providers.LabelError, match="LLM_API_KEY"):
+        providers.label("https://x", {"title": "x"})
+
+
+def test_provider_choice(monkeypatch):
+    assert providers.provider() is None
+    _gemini_env(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+    assert providers.provider() == "claude"            # both set: Claude by default
+    monkeypatch.setenv("AI_PROVIDER", "other")
+    assert providers.provider() == "other"
+    monkeypatch.delenv("LLM_API_KEY")                   # Ollama-style: no key needed
+    assert providers.provider() == "other"
