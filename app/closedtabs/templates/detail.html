@@ -17,6 +17,52 @@
   <section class="box"><h3>Summary</h3><p>{{ link.summary or link.description }}</p></section>
   {% endif %}
 
+
+  {% set s = link.seo %}
+  {% if s and s.get("title") is not none %}
+  <section class="box seo">
+    <h3>Website data</h3>
+
+    {% if s.checks %}
+    <ul class="checks">
+      {% for c in s.checks %}<li class="{{ c.level }}">{{ "✓" if c.level == "ok" else "⚠" }} {{ c.text }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if s.tech %}
+    <h4>Marketing &amp; tech stack</h4>
+    <div class="tags">{% for t in s.tech %}<a class="tag" href="/library?q={{ t.name|urlencode }}" title="{{ t.category }}">{{ t.name }}</a>{% endfor %}</div>
+    {% endif %}
+
+    {% if s.keywords and (s.keywords.words or s.keywords.phrases) %}
+    <h4>Top keywords on the page</h4>
+    <p class="kw">{% for w, n in s.keywords.words %}<span>{{ w }} <small>{{ n }}</small></span>{% endfor %}</p>
+    {% if s.keywords.phrases %}<p class="kw">{% for w, n in s.keywords.phrases %}<span>{{ w }} <small>{{ n }}</small></span>{% endfor %}</p>{% endif %}
+    {% endif %}
+
+    <table class="facts">
+      <tr><th>Title</th><td>{{ s.title or "—" }}</td></tr>
+      <tr><th>Meta description</th><td>{{ s.description or "—" }}</td></tr>
+      {% if s.meta_keywords %}<tr><th>Meta keywords</th><td>{{ s.meta_keywords|join(", ") }}</td></tr>{% endif %}
+      {% if s.h1 %}<tr><th>H1</th><td>{{ s.h1|join(" · ") }}</td></tr>{% endif %}
+      {% if s.h2 %}<tr><th>H2</th><td>{{ s.h2|join(" · ") }}</td></tr>{% endif %}
+      {% if s.schema_types %}<tr><th>Structured data</th><td>{{ s.schema_types|join(", ") }}</td></tr>{% endif %}
+      {% if s.og %}<tr><th>Open Graph</th><td>{% for k, v in s.og.items() %}<div><b>{{ k }}</b>: {{ v[:160] }}</div>{% endfor %}</td></tr>{% endif %}
+      {% if s.twitter_card %}<tr><th>Twitter card</th><td>{{ s.twitter_card }}</td></tr>{% endif %}
+      {% if s.socials %}<tr><th>Social profiles</th><td>{% for n, u in s.socials.items() %}<a href="{{ u }}" target="_blank" rel="noopener">{{ n }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</td></tr>{% endif %}
+      {% if s.emails or s.phones %}<tr><th>Contact</th><td>{{ (s.emails + s.phones)|join(" · ") }}</td></tr>{% endif %}
+      <tr><th>Language</th><td>{{ s.lang or "—" }}{% if s.hreflang %} · versions: {{ s.hreflang|join(", ") }}{% endif %}</td></tr>
+      <tr><th>Content</th><td>{{ s.word_count }} words · {{ s.images }} images · {{ s.links_internal }} internal / {{ s.links_external }} external links</td></tr>
+      <tr><th>Technical</th><td>{{ "HTTPS" if s.https else "HTTP" }}{% if s.response_ms is not none %} · {{ s.response_ms }} ms{% endif %}{% if s.size_kb %} · {{ s.size_kb }} KB{% endif %}{% if s.redirects %} · {{ s.redirects }} redirect(s){% endif %}{% if s.server %} · server: {{ s.server }}{% endif %}</td></tr>
+      {% if s.canonical %}<tr><th>Canonical</th><td>{{ s.canonical }}</td></tr>{% endif %}
+      {% if s.robots %}<tr><th>Robots</th><td>{{ s.robots }}</td></tr>{% endif %}
+    </table>
+    <p class="muted">Collected when the page was saved. "Re-read page" refreshes it.</p>
+  </section>
+  {% elif link.status == "done" %}
+  <p class="muted">No website data for this link (the page couldn't be opened, or it isn't a web page). Try "Re-read page".</p>
+  {% endif %}
+
   <form class="box" action="/links/{{ link.id }}/edit" method="post">
     <h3>Labels <small class="muted">(comma separated. Add your own, e.g. project-delia, client. The AI never removes those.)</small></h3>
     <input name="tags" value="{{ link.tags|join(', ') }}">

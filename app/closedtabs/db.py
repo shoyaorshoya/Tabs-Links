@@ -28,14 +28,33 @@ CREATE TABLE IF NOT EXISTS links (
   note        TEXT NOT NULL DEFAULT '',
   status      TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error
   error       TEXT NOT NULL DEFAULT '',
-  created_at  REAL NOT NULL
-);
-CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
-  title, summary, description, tags, note, url, content, tokenize='unicode61'
+  created_at  REAL NOT NULL,
+  seo         TEXT NOT NULL DEFAULT '{}'      -- website data (see seo.py), JSON
 );
 """
 
-FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error")
+FTS_SCHEMA = """
+CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
+  title, summary, description, tags, note, url, content, seo, tokenize='unicode61'
+);
+"""
+
+FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo")
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    """Bring databases from older versions up to date (safe to run every start)."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(links)")}
+    if "seo" not in cols:
+        c.execute("ALTER TABLE links ADD COLUMN seo TEXT NOT NULL DEFAULT '{}'")
+    fts_cols = {r[1] for r in c.execute("PRAGMA table_info(links_fts)")}
+    if fts_cols and "seo" not in fts_cols:
+        c.execute("DROP TABLE links_fts")
+    c.executescript(FTS_SCHEMA)
+    if not fts_cols or "seo" not in fts_cols:
+        for (link_id,) in c.execute("SELECT id FROM links").fetchall():
+            _reindex(c, link_id)
+    c.commit()
 
 
 def conn() -> sqlite3.Connection:
@@ -47,6 +66,7 @@ def conn() -> sqlite3.Connection:
             _conn.row_factory = sqlite3.Row
             _conn.execute("PRAGMA journal_mode=WAL")
             _conn.executescript(SCHEMA)
+            _migrate(_conn)
         return _conn
 
 
@@ -63,6 +83,7 @@ def _row(r: sqlite3.Row | None) -> dict | None:
         return None
     d = dict(r)
     d["tags"] = json.loads(d["tags"])
+    d["seo"] = json.loads(d.get("seo") or "{}")
     return d
 
 
@@ -70,11 +91,14 @@ def _reindex(c: sqlite3.Connection, link_id: int) -> None:
     r = c.execute("SELECT * FROM links WHERE id=?", (link_id,)).fetchone()
     c.execute("DELETE FROM links_fts WHERE rowid=?", (link_id,))
     if r:
-        tags = " ".join(json.loads(r["tags"])).replace("/", " ")
+        from .seo import search_text  # local import keeps db.py free of parsing code at import time
+
+        tags = " ".join(json.loads(r["tags"])).replace("/", " ").replace("-", " ")
+        seo_words = search_text(json.loads(r["seo"] or "{}"))
         c.execute(
-            "INSERT INTO links_fts(rowid,title,summary,description,tags,note,url,content)"
-            " VALUES (?,?,?,?,?,?,?,?)",
-            (link_id, r["title"], r["summary"], r["description"], tags, r["note"], r["url"], r["content"]),
+            "INSERT INTO links_fts(rowid,title,summary,description,tags,note,url,content,seo)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (link_id, r["title"], r["summary"], r["description"], tags, r["note"], r["url"], r["content"], seo_words),
         )
 
 
@@ -98,6 +122,8 @@ def update(link_id: int, **fields) -> None:
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     if "tags" in fields and not isinstance(fields["tags"], str):
         fields["tags"] = json.dumps(list(fields["tags"]))
+    if "seo" in fields and not isinstance(fields["seo"], str):
+        fields["seo"] = json.dumps(fields["seo"], ensure_ascii=False)
     if not fields:
         return
     with _lock:

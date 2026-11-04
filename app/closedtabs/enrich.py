@@ -4,12 +4,13 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+import time
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from . import db, providers, taxonomy
+from . import db, providers, seo, taxonomy
 
 log = logging.getLogger("closedtabs")
 
@@ -84,9 +85,13 @@ def parse_page(html_text: str, base_url: str) -> dict:
 
 
 def fetch(url: str) -> dict:
+    started = time.monotonic()
     with httpx.Client(follow_redirects=True, timeout=20, headers={"User-Agent": UA}) as client:
         with client.stream("GET", url) as r:
             r.raise_for_status()
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            headers = dict(r.headers)
+            status, redirects = r.status_code, len(r.history)
             ctype = r.headers.get("content-type", "")
             body = b""
             for chunk in r.iter_bytes():
@@ -99,7 +104,14 @@ def fetch(url: str) -> dict:
         site = urlsplit(final_url).netloc.removeprefix("www.")
         name = urlsplit(final_url).path.rsplit("/", 1)[-1] or site
         return {"title": name, "description": f"{ctype or 'file'} file", "image": "", "site": site, "content": ""}
-    return parse_page(body.decode(encoding, errors="replace"), final_url)
+    html_text = body.decode(encoding, errors="replace")
+    page = parse_page(html_text, final_url)
+    try:
+        page["seo"] = seo.analyze(html_text, final_url, headers=headers, status=status,
+                                  elapsed_ms=elapsed_ms, size_bytes=len(body), redirects=redirects)
+    except Exception:  # website data is a bonus; never let it block saving the link
+        log.exception("website analysis failed for %s", final_url)
+    return page
 
 
 # ── pipeline ─────────────────────────────────────────────────────────

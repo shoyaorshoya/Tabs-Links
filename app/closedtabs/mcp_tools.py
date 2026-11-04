@@ -14,6 +14,9 @@ mcp = MCPServer(
         "derived from the page (e.g. topic/eye-tracking), the owner's own labels without a prefix "
         "(e.g. project-delia), and a short summary. Use search_links to find things (try synonyms and tag filters if the first "
         "search is thin), get_link to read a page's saved text, and add_link to save new links. "
+        "get_link also returns website_data: SEO checks, top keywords, headings, structured data, "
+        "the marketing/tech stack (analytics, ad pixels, CMS, CRM, consent, chat), social profiles and "
+        "public contact links. search_links also matches technology names, e.g. 'Meta Pixel' or 'HubSpot'. "
         "Always give the user the URL of anything you recommend."
     ),
 )
@@ -28,7 +31,8 @@ def _brief(link: dict) -> dict:
 
 @mcp.tool()
 def search_links(query: str = "", tag: str = "", limit: int = 15) -> list[dict]:
-    """Search saved links by words (title, summary, page text, note) and/or one exact label.
+    """Search saved links by words (title, summary, page text, note, website technology and keywords)
+    and/or one exact label.
 
     Args:
         query: words to look for, e.g. "landing page a/b testing". Empty = newest first.
@@ -44,7 +48,8 @@ def get_link(link_id: int, max_chars: int = 20000) -> dict:
     link = db.get(link_id)
     if not link:
         return {"error": f"No link with id {link_id}"}
-    return dict(_brief(link), content=link["content"][:max_chars], status=link["status"])
+    seo = dict(link["seo"] or {})
+    return dict(_brief(link), content=link["content"][:max_chars], status=link["status"], website_data=seo)
 
 
 @mcp.tool()

@@ -287,3 +287,78 @@ def test_web_own_labels_and_relabel_all(monkeypatch):
         assert "my labels" in r.text and "Re-label all" not in r.text            # AI off: no button
         r = c.post("/relabel-all", follow_redirects=False)
         assert "AI+is+off" in r.headers["location"]
+
+
+SITE = """<!doctype html><html lang="ro"><head>
+<title>Judith Ardelean - Permanent Makeup Oradea</title>
+<meta name="description" content="Dermopigmentare și machiaj permanent în Oradea din 1997. Sprâncene, buze, eyeliner. Programează-te online.">
+<meta name="keywords" content="machiaj permanent, sprancene, oradea">
+<meta name="viewport" content="width=device-width">
+<meta property="og:title" content="Judith Ardelean PMU"><meta property="og:image" content="/og.jpg">
+<meta name="generator" content="WordPress 6.6">
+<link rel="canonical" href="/ro/"><link rel="alternate" hreflang="hu" href="/hu/">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ABC123"></script>
+<script>fbq('init', '123');</script>
+<script src="https://consent.cookiebot.com/uc.js"></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BeautySalon","address":{"@type":"PostalAddress"}}</script>
+</head><body><nav>Acasă Servicii Contact</nav>
+<h1>Machiaj permanent Oradea</h1><h2>Sprâncene</h2><h2>Buze</h2>
+<p>Machiaj permanent pentru sprâncene și buze. Machiaj permanent realizat cu grijă. Sprâncene naturale.</p>
+<img src="a.jpg" alt="sprancene"><img src="b.jpg">
+<a href="/servicii">Servicii</a><a href="https://www.instagram.com/judith.pmu/">Insta</a>
+<a href="https://www.facebook.com/sharer/sharer.php?u=x">share</a><a href="mailto:hello@example.ro">mail</a>
+<a href="tel:+40700000000">call</a><footer>© 2026 cookie policy</footer></body></html>"""
+
+
+def test_seo_analyze():
+    from closedtabs import seo
+    d = seo.analyze(SITE, "https://judith.example/ro/", headers={"Server": "cloudflare"},
+                    elapsed_ms=420, size_bytes=4000, redirects=1)
+    names = {t["name"] for t in d["tech"]}
+    assert {"Google Analytics 4", "Meta Pixel", "Cookiebot", "WordPress", "Cloudflare"} <= names
+    assert d["lang"] == "ro" and d["hreflang"] == ["hu"]
+    assert d["canonical"] == "https://judith.example/ro/"
+    assert d["schema_types"] == ["BeautySalon", "PostalAddress"]
+    assert d["h1"] == ["Machiaj permanent Oradea"] and d["h2"] == ["Sprâncene", "Buze"]
+    assert d["images"] == 2 and d["images_no_alt"] == 1
+    assert d["socials"] == {"Instagram": "https://www.instagram.com/judith.pmu/"}   # share links ignored
+    assert d["emails"] == ["hello@example.ro"] and d["phones"] == ["+40700000000"]
+    assert d["meta_keywords"] == ["machiaj permanent", "sprancene", "oradea"]
+    words = dict(d["keywords"]["words"])
+    assert words["machiaj"] == 3 and "pentru" not in words and "acasă" not in words    # stopwords, nav removed
+    assert ("machiaj permanent", 3) in d["keywords"]["phrases"]
+    levels = {c["text"].split(" (")[0]: c["level"] for c in d["checks"]}
+    assert levels["Exactly one H1 heading"] == "ok"
+    assert any(c["level"] == "warn" and "alt text" in c["text"] for c in d["checks"])
+    assert "Meta Pixel" in seo.search_text(d)
+
+
+def test_search_by_technology_and_migration(tmp_path):
+    import sqlite3
+    from closedtabs import seo
+    old = sqlite3.connect(tmp_path / "closedtabs.db")       # database from an older version
+    old.executescript("""
+      CREATE TABLE links (id INTEGER PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', site TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',
+        note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', error TEXT NOT NULL DEFAULT '',
+        created_at REAL NOT NULL);
+      CREATE VIRTUAL TABLE links_fts USING fts5(title, summary, description, tags, note, url, content);
+      INSERT INTO links(url,title,created_at) VALUES ('https://old.example','Old salon',1);
+      INSERT INTO links_fts(rowid,title) VALUES (1,'Old salon');""")
+    old.commit(); old.close()
+    db.reset_for_tests(tmp_path)
+    assert [l["title"] for l in db.search("salon")] == ["Old salon"] and db.get(1)["seo"] == {}
+    db.update(1, seo=seo.analyze(SITE, "https://old.example/"))
+    assert [l["id"] for l in db.search("Meta Pixel")] == [1]
+    assert [l["id"] for l in db.search("BeautySalon")] == [1]
+
+
+def test_detail_page_shows_website_data():
+    from fastapi.testclient import TestClient
+    from closedtabs import seo, web
+    i, _ = db.add("https://judith.example/ro/")
+    db.update(i, status="done", title="Judith", seo=seo.analyze(SITE, "https://judith.example/ro/"))
+    r = TestClient(web.app).get(f"/links/{i}")
+    assert "Website data" in r.text and "Meta Pixel" in r.text and "BeautySalon" in r.text
+    assert "machiaj permanent" in r.text
