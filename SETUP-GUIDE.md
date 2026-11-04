@@ -60,8 +60,9 @@ Press **Cmd + Shift + .** to show hidden files, and open **.env** with TextEdit.
 
 **Step 9.** Stop ClosedTabs (Ctrl + C, if you use `start-local.sh`) and start it again the same way.
 
-New links now get labels and a summary. For links saved before the key, open one,
-click **details**, then **Re-read page & re-label**.
+New links now get labels and a summary. Links you saved **before** adding the key are
+labelled automatically the first time ClosedTabs starts with the key. You'll see
+"⏳ Reading the page…" on them for a little while.
 
 *Cost: roughly 1–2 cents per link with the default model. For about 40× cheaper, change
 `CLAUDE_MODEL=claude-opus-5-5` to `CLAUDE_MODEL=claude-haiku-5-5` in the same file.*

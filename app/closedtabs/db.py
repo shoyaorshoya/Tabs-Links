@@ -128,6 +128,13 @@ def pending_ids() -> list[int]:
         return [r["id"] for r in conn().execute("SELECT id FROM links WHERE status='pending' ORDER BY id")]
 
 
+def unlabeled_ids() -> list[int]:
+    """Finished links with no AI 'type/' label yet (e.g. saved before the API key was added)."""
+    with _lock:
+        return [r["id"] for r in conn().execute(
+            "SELECT id FROM links WHERE status != 'pending' AND tags NOT LIKE '%\"type/%' ORDER BY id")]
+
+
 def _fts_query(q: str) -> str:
     words = re.findall(r"\w+", q, flags=re.UNICODE)
     return " ".join(f'"{w}"*' for w in words)

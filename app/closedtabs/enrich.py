@@ -208,6 +208,13 @@ class Worker:
             threading.Thread(target=self._run, daemon=True).start()
         for link_id in db.pending_ids():  # resume after a restart
             self.q.put(link_id)
+        if ai_enabled():  # label links saved before the API key was added
+            todo = db.unlabeled_ids()
+            if todo:
+                log.info("labelling %d links that have no labels yet", len(todo))
+            for link_id in todo:
+                db.update(link_id, status="pending", error="")
+                self.q.put(link_id)
 
     def submit(self, link_id: int) -> None:
         self.q.put(link_id)

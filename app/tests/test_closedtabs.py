@@ -143,3 +143,15 @@ def test_web_flow(monkeypatch):
         assert "Saved+1+link" in r.headers["location"]
         assert c.get("/health").json()["links"] == 2
         assert len(json.loads(c.get("/export.json").text)) == 2
+
+
+def test_links_saved_before_key_get_labelled_on_start(monkeypatch):
+    i, _ = db.add("https://old.example")
+    db.update(i, status="done", title="Old")                 # saved with AI off
+    j, _ = db.add("https://done.example")
+    db.update(j, status="done", tags=["type/tool"])           # already labelled
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    w = enrich.Worker(threads=0)                              # no threads: just inspect the queue
+    w.start()
+    assert list(w.q.queue) == [i]
+    assert db.get(i)["status"] == "pending" and db.get(j)["status"] == "done"
