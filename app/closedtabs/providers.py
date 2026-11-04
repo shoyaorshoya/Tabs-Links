@@ -138,6 +138,9 @@ def _label_other(body: str) -> dict:
             raise LabelError("The AI provider rejected the key. Check LLM_API_KEY.")
         if r.status_code == 404:
             raise LabelError(f"Model '{_env('LLM_MODEL')}' or address not found. Check LLM_MODEL and LLM_BASE_URL.")
+        if r.status_code == 402:
+            raise LabelError("Your AI provider account is out of credits. Add credits there, or switch "
+                             "to another AI in deploy/.env. This link is labelled automatically after a restart.")
         if r.status_code == 429:
             raise LabelError("The AI provider says: too many requests / quota reached. Try again later.")
         if r.status_code == 400:  # usually: this JSON mode isn't supported, try the next one

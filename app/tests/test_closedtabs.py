@@ -218,3 +218,10 @@ def test_provider_choice(monkeypatch):
     assert providers.provider() == "other"
     monkeypatch.delenv("LLM_API_KEY")                   # Ollama-style: no key needed
     assert providers.provider() == "other"
+
+
+def test_other_provider_out_of_credits_message(monkeypatch):
+    _gemini_env(monkeypatch)
+    monkeypatch.setattr(providers, "_post_chat", lambda p: _resp(402, text='{"error":"Purchase pre-paid credits"}'))
+    with pytest.raises(providers.LabelError, match="out of credits"):
+        providers.label("https://x", {"title": "x"})
