@@ -54,7 +54,7 @@ config, and the wireframes for a future custom front end.
 
 ## Quick start (about 20 minutes)
 
-1. **Run it.** Copy `deploy/.env.example` to `deploy/.env`, fill in the secrets, then run `docker compose up -d` inside `deploy/`.
+1. **Run it.** With [Docker Desktop](https://www.docker.com/products/docker-desktop/) open, run `./start.sh` (Mac/Linux) or `.\start.ps1` (Windows). It creates `deploy/.env` with random secrets and starts everything.
    No server? Use a one-click host instead (see the architecture doc, "Hosting").
 2. **Create your account** at `http://localhost:3000`, then go to *Settings → API keys* and create a key.
 3. **Paste the tagging prompt** from `docs/04-taxonomy.md` into *Settings → AI*.
