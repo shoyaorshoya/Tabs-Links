@@ -18,7 +18,7 @@ description, and makes it searchable, for you and for Claude.
 | Paste one link, or many (one per line) | Saves it, removes tracking junk (`utm_…`), skips duplicates |
 | Nothing | Opens the page, stores its title, image, description and text |
 | Nothing (with a Claude, Gemini or other AI key) | Adds 1 `type/`, 1–3 `topic/`, 0–2 `use/` labels + a 2–3 sentence summary |
-| Nothing | Collects website data: SEO checks, top keywords & phrases, headings, structured data, marketing/tech stack (analytics, ad pixels, CMS, CRM, consent, chat), social profiles, public contact links |
+| Tick *CommData* | Collects website data: SEO checks, top keywords & phrases, headings, structured data, marketing/tech stack (analytics, ad pixels, CMS, CRM, consent, chat), social profiles, public contact links. Adds the **CommData** label, groups sites by project, exports CSV |
 | Search or click a label | Full-text search over titles, summaries, notes and page text |
 | Import a bookmarks file | Brings in all your old tabs/bookmarks at once |
 | Ask Claude | Claude searches, reads and saves links through the built-in MCP connector |
@@ -31,6 +31,7 @@ description, and makes it searchable, for you and for Claude.
 | `start-local.sh` | One-command start without Docker (Python 3.10+) |
 | `app/closedtabs/` | The app (Python, FastAPI, SQLite) |
 | `app/closedtabs/providers.py` | AI providers: Claude (Anthropic SDK) or any OpenAI-compatible API |
+| `app/closedtabs/commdata_csv.py` | CommData CSV export (one row per website) |
 | `app/closedtabs/seo.py` | Website data + the list of recognised marketing technologies |
 | `app/closedtabs/taxonomy.py` | The label lists and the AI instructions. Edit here to change labels. |
 | `deploy/` | Docker setup + settings file (`.env`) |

@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS links (
   status      TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error
   error       TEXT NOT NULL DEFAULT '',
   created_at  REAL NOT NULL,
-  seo         TEXT NOT NULL DEFAULT '{}'      -- website data (see seo.py), JSON
+  seo         TEXT NOT NULL DEFAULT '{}',     -- website data (see seo.py), JSON
+  want_commdata INTEGER NOT NULL DEFAULT 0    -- 1 = collect website data for this link
 );
 """
 
@@ -39,7 +40,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
 );
 """
 
-FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo")
+FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo", "want_commdata")
 
 
 def _migrate(c: sqlite3.Connection) -> None:
@@ -47,6 +48,12 @@ def _migrate(c: sqlite3.Connection) -> None:
     cols = {r[1] for r in c.execute("PRAGMA table_info(links)")}
     if "seo" not in cols:
         c.execute("ALTER TABLE links ADD COLUMN seo TEXT NOT NULL DEFAULT '{}'")
+    if "want_commdata" not in cols:
+        c.execute("ALTER TABLE links ADD COLUMN want_commdata INTEGER NOT NULL DEFAULT 0")
+        # links that already have website data (from the version before the checkbox) keep it
+        for r in c.execute("SELECT id, tags FROM links WHERE seo NOT IN ('', '{}')").fetchall():
+            tags = sorted(set(json.loads(r[1])) | {"commdata"})
+            c.execute("UPDATE links SET want_commdata=1, tags=? WHERE id=?", (json.dumps(tags), r[0]))
     fts_cols = {r[1] for r in c.execute("PRAGMA table_info(links_fts)")}
     if fts_cols and "seo" not in fts_cols:
         c.execute("DROP TABLE links_fts")
@@ -166,8 +173,8 @@ def _fts_query(q: str) -> str:
     return " ".join(f'"{w}"*' for w in words)
 
 
-def search(q: str = "", tag: str = "", limit: int = 200, offset: int = 0) -> list[dict]:
-    """Newest first; with q, best match first. tag filters by exact label (e.g. 'type/tool')."""
+def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int = 0) -> list[dict]:
+    """Newest first; with q, best match first. tag: one exact label or a list (all must match)."""
     sql, args = "SELECT l.* FROM links l", []
     where = []
     fq = _fts_query(q) if q else ""
@@ -175,9 +182,10 @@ def search(q: str = "", tag: str = "", limit: int = 200, offset: int = 0) -> lis
         sql += " JOIN links_fts f ON f.rowid = l.id"
         where.append("links_fts MATCH ?")
         args.append(fq)
-    if tag:
-        where.append("l.tags LIKE ?")
-        args.append(f'%"{tag}"%')
+    for t in ([tag] if isinstance(tag, str) else tag):
+        if t:
+            where.append("l.tags LIKE ?")
+            args.append(f'%"{t}"%')
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY " + ("bm25(links_fts)" if fq else "l.created_at DESC")
@@ -201,6 +209,14 @@ def topic_labels(limit: int = 150) -> list[str]:
     """Most-used AI topic labels (without the 'topic/' prefix), for reuse by the AI."""
     return [t.split("/", 1)[1] for t, _ in sorted(
         ((t, n) for t, n in tag_counts() if t.startswith("topic/")), key=lambda kv: -kv[1])[:limit]]
+
+
+def commdata_projects() -> list[tuple[str, int]]:
+    """Own labels (projects) used on CommData links, with counts."""
+    c = Counter()
+    for l in search("", tag="commdata", limit=100_000):
+        c.update(t for t in l["tags"] if "/" not in t and t != "commdata")
+    return sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 def mark_all_pending() -> list[int]:

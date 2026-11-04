@@ -16,7 +16,8 @@ mcp = MCPServer(
         "search is thin), get_link to read a page's saved text, and add_link to save new links. "
         "get_link also returns website_data: SEO checks, top keywords, headings, structured data, "
         "the marketing/tech stack (analytics, ad pixels, CMS, CRM, consent, chat), social profiles and "
-        "public contact links. search_links also matches technology names, e.g. 'Meta Pixel' or 'HubSpot'. "
+        "public contact links (only for links labelled commdata; the owner uses these, grouped by "
+        "project label, for client communication analyses). search_links also matches technology names, e.g. 'Meta Pixel' or 'HubSpot'. "
         "Always give the user the URL of anything you recommend."
     ),
 )
@@ -53,15 +54,33 @@ def get_link(link_id: int, max_chars: int = 20000) -> dict:
 
 
 @mcp.tool()
-def add_link(url: str, note: str = "") -> dict:
-    """Save a new link. Labels and a summary are added automatically within about a minute."""
+def add_link(url: str, note: str = "", labels: str = "", commdata: bool = False) -> dict:
+    """Save a new link. Labels and a summary are added automatically within about a minute.
+
+    Args:
+        url: the web address.
+        note: why it was saved (optional).
+        labels: the owner's own labels, comma separated, e.g. "project-delia, client" (optional).
+        commdata: True to also collect website data (SEO, keywords, marketing stack, socials) and
+            label it CommData. Use when the owner wants a communication analysis of the site.
+    """
     from .enrich import worker  # local import: avoids a cycle at startup
 
     if not url.startswith(("http://", "https://")):
         return {"error": "URL must start with http:// or https://"}
+    from . import taxonomy
+
     link_id, created = db.add(clean_url(url), note=note)
+    own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
     if created:
+        db.update(link_id, tags=own, want_commdata=int(commdata))
         worker.submit(link_id)
+    else:
+        old = db.get(link_id)
+        db.update(link_id, tags=sorted(set(old["tags"]) | set(own)))
+        if commdata and not old["want_commdata"]:
+            db.update(link_id, want_commdata=1, status="pending")
+            worker.submit(link_id)
     return {"id": link_id, "created": created}
 
 

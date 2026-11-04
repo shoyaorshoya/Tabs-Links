@@ -84,7 +84,8 @@ def parse_page(html_text: str, base_url: str) -> dict:
     }
 
 
-def fetch(url: str) -> dict:
+def fetch(url: str, analyze: bool = False) -> dict:
+    """Download a page. analyze=True also collects website data (CommData) under 'seo'."""
     started = time.monotonic()
     with httpx.Client(follow_redirects=True, timeout=20, headers={"User-Agent": UA}) as client:
         with client.stream("GET", url) as r:
@@ -106,6 +107,8 @@ def fetch(url: str) -> dict:
         return {"title": name, "description": f"{ctype or 'file'} file", "image": "", "site": site, "content": ""}
     html_text = body.decode(encoding, errors="replace")
     page = parse_page(html_text, final_url)
+    if not analyze:
+        return page
     try:
         page["seo"] = seo.analyze(html_text, final_url, headers=headers, status=status,
                                   elapsed_ms=elapsed_ms, size_bytes=len(body), redirects=redirects)
@@ -120,8 +123,9 @@ def enrich(link_id: int) -> None:
     if not link:
         return
     url = link["url"]
+    want = bool(link["want_commdata"])
     try:
-        page = fetch(url)
+        page = fetch(url, analyze=want)
     except Exception as e:  # unreachable / blocked site: still keep the link
         log.info("fetch failed for %s: %s", url, e)
         site = urlsplit(url).netloc.removeprefix("www.")
@@ -132,17 +136,29 @@ def enrich(link_id: int) -> None:
     if link["title"] and not page["title"]:
         page["title"] = link["title"]
 
+    tags = set(link["tags"])
+    # Website data (CommData): only when asked for. Keep earlier data if the page couldn't be opened.
+    if want and page.get("seo"):
+        tags.add(taxonomy.COMMDATA)
+    elif want and link["seo"]:
+        page["seo"] = link["seo"]
+    elif not want:
+        page["seo"] = {}
+        tags.discard(taxonomy.COMMDATA)
+    if want and not page.get("seo") and fetch_error:
+        fetch_error += " Website data (CommData) couldn't be collected; try 'Re-read page' later."
+
     fields = dict(page, summary=page["description"], status="done", error=fetch_error)
     if ai_enabled():
         try:
             result = providers.label(url, page, AI_CHARS, note=link["note"], known=db.topic_labels())
             fields["summary"] = result["summary"] or page["description"]
             # Replace earlier AI labels (type/ topic/ use/); keep labels the owner typed by hand.
-            own = {t for t in link["tags"] if not t.startswith(taxonomy.AI_PREFIXES)}
-            fields["tags"] = sorted(own | set(taxonomy.to_tags(result)))
+            tags = {t for t in tags if not t.startswith(taxonomy.AI_PREFIXES)} | set(taxonomy.to_tags(result))
         except providers.LabelError as e:
             log.warning("labelling failed for %s: %s", url, e)
             fields.update(status="error", error=str(e)[:300])
+    fields["tags"] = sorted(tags)
     db.update(link_id, **fields)
 
 

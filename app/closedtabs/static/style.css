@@ -65,6 +65,14 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
 .summary { margin: 6px 0; }
 .note { margin: 4px 0; font-size: 14px; font-style: italic; }
 .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.side-link.sub { padding-left: 20px; }
+.check { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.check input { width: auto; margin: 0; accent-color: var(--accent); }
+.check.small { font-size: 12px; padding: 0 8px 6px; }
+.resultbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.export { margin: 0; font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.btn-sm { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
+.tag.tag-cd { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .tag-own { outline: 1px solid var(--accent); }
 .linklike { background: none; border: 0; font: inherit; width: 100%; text-align: left; }
 .tag { background: var(--tag); color: var(--accent); font-size: 12px; padding: 2px 8px; border-radius: 99px; }
@@ -86,6 +94,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
 .facts th { text-align: left; vertical-align: top; color: var(--muted); font-weight: 500; width: 140px; padding: 5px 8px 5px 0; }
 .facts td { padding: 5px 0; overflow-wrap: anywhere; border-top: 1px solid var(--line); }
 .facts th { border-top: 1px solid var(--line); }
+.cd-offer { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; }
 .actions { display: flex; gap: 8px; }
 .pagetext { white-space: pre-wrap; font: 13px/1.5 ui-monospace, monospace; max-height: 480px; overflow: auto; }
 

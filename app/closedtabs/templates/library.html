@@ -1,28 +1,42 @@
 {% extends "base.html" %}
+{% macro label_name(t) %}{% if t == "commdata" %}CommData{% elif t.startswith("topic/") %}{{ t.split("/", 1)[1] }}{% else %}{{ t }}{% endif %}{% endmacro %}
+{% macro filter_url(tags) %}/library?{% for t in tags %}tag={{ t|urlencode }}{% if not loop.last %}&amp;{% endif %}{% endfor %}{% endmacro %}
 {% block head %}{% if processing %}<meta http-equiv="refresh" content="6">{% endif %}{% endblock %}
 {% block body %}
 <header class="topbar">
   <a class="logo small" href="/">Closed<span>Tabs</span></a>
   <form class="search" action="/library" method="get">
     <input type="search" name="q" value="{{ q }}" placeholder="Search your links…" aria-label="Search">
-    {% if tag %}<input type="hidden" name="tag" value="{{ tag }}">{% endif %}
+    {% for t in tag %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
   </form>
 </header>
 
 <div class="layout">
   <aside class="sidebar">
     <a href="/library" class="side-link {% if not tag %}active{% endif %}">All links <span>{{ total }}</span></a>
+
+    {% set cd = (tags|selectattr(0, "equalto", "commdata")|list) %}
+    {% if cd %}
+    <h4>CommData</h4>
+    <a href="{{ filter_url(['commdata']) }}" class="side-link {% if tag == ['commdata'] %}active{% endif %}">All websites <span>{{ cd[0][1] }}</span></a>
+    {% for p, n in projects %}
+      <a href="{{ filter_url(['commdata', p]) }}" class="side-link sub {% if tag == ['commdata', p] %}active{% endif %}">{{ p }} <span>{{ n }}</span></a>
+    {% endfor %}
+    {% endif %}
+
     {% set ns = namespace(group="") %}
-    {% for t, n in tags %}
+    {% for t, n in tags if t != "commdata" %}
       {% set g = {"type": "type", "topic": "topics", "use": "older labels"}.get(t.split("/")[0], "my labels") if "/" in t else "my labels" %}
       {% if g != ns.group %}<h4>{{ g }}</h4>{% set ns.group = g %}{% endif %}
-      <a href="/library?tag={{ t|urlencode }}" class="side-link {% if t == tag %}active{% endif %}">{{ t.split("/", 1)[-1] }} <span>{{ n }}</span></a>
+      <a href="{{ filter_url([t]) }}" class="side-link {% if tag == [t] %}active{% endif %}">{{ t.split("/", 1)[-1] }} <span>{{ n }}</span></a>
     {% endfor %}
+
     <h4>more</h4>
     <form action="/import" method="post" enctype="multipart/form-data" class="import">
       <label class="side-link">Import bookmarks file…
         <input type="file" name="file" accept=".html,.htm,.txt" onchange="this.form.submit()" hidden>
       </label>
+      <label class="check small"><input type="checkbox" name="commdata" value="1"> with CommData</label>
     </form>
     <a class="side-link" href="/export.json">Export everything</a>
     {% if ai and total %}
@@ -39,13 +53,27 @@
         oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
       <button class="btn" type="submit">Save</button>
       <input name="note" placeholder="Why am I saving this? (optional)">
-      <input name="labels" list="known-labels" placeholder="My labels, comma separated (optional)">
-      <datalist id="known-labels">{% for t in all_labels %}{% if "/" not in t %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
+      <input name="labels" list="known-labels" placeholder="My labels, comma separated (optional)"
+        value="{% for t in tag if '/' not in t and t != 'commdata' %}{{ t }}{% endfor %}">
+      <label class="check"><input type="checkbox" name="commdata" value="1" {% if commdata_view %}checked{% endif %}>
+        <span>Collect website data (<b>CommData</b>): SEO, keywords, marketing stack, socials</span></label>
+      <datalist id="known-labels">{% for t in all_labels %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
     </form>
 
     {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
     {% if not ai %}<p class="hint">AI labels are off. Add a Claude key, or any other AI provider's key, to switch them on (see the guide).</p>{% endif %}
-    {% if q or tag %}<p class="muted">{{ links|length }} result{{ "s" if links|length != 1 }}{% if tag %} for <b>{{ tag }}</b>{% endif %}{% if q %} matching “{{ q }}”{% endif %} · <a href="/library">clear</a></p>{% endif %}
+
+    {% if q or tag %}
+    <div class="resultbar">
+      <p class="muted">{{ links|length }} result{{ "s" if links|length != 1 }}{% if tag %} for {% for t in tag %}<b>{{ label_name(t) }}</b>{% if not loop.last %} + {% endif %}{% endfor %}{% endif %}{% if q %} matching “{{ q }}”{% endif %} · <a href="/library">clear</a></p>
+      {% if commdata_view and links %}
+      <p class="export">Export CommData:
+        <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}">CSV</a>
+        <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}sep=semicolon" title="For Excel with Hungarian, Romanian, German… settings">CSV for Excel (;)</a>
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% for l in links %}
     <article class="card">
@@ -53,13 +81,13 @@
       <div class="card-body">
         <a class="card-title" href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title or l.url }}</a>
         <div class="meta">{{ l.site }} · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a></div>
-        {% if l.status == "pending" %}<p class="muted">⏳ Reading the page…</p>
+        {% if l.status == "pending" %}<p class="muted">⏳ Reading the page…{% if l.want_commdata %} (with CommData){% endif %}</p>
         {% else %}
           {% if l.summary or l.description %}<p class="summary">{{ l.summary or l.description }}</p>{% endif %}
           {% if l.error %}<p class="warn">{{ l.error }}</p>{% endif %}
         {% endif %}
         {% if l.note %}<p class="note">✎ {{ l.note }}</p>{% endif %}
-        <div class="tags">{% for t in l.tags %}<a class="tag {% if '/' not in t %}tag-own{% endif %}" href="/library?tag={{ t|urlencode }}">{{ t.split('/', 1)[-1] if t.startswith('topic/') else t }}</a>{% endfor %}</div>
+        <div class="tags">{% for t in l.tags %}<a class="tag {% if t == 'commdata' %}tag-cd{% elif '/' not in t %}tag-own{% endif %}" href="{{ filter_url([t]) }}">{{ label_name(t) }}</a>{% endfor %}</div>
       </div>
     </article>
     {% else %}

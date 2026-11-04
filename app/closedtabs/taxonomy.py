@@ -11,6 +11,8 @@ TYPES = [
     "course", "template", "dataset", "newsletter", "inspiration", "reference-docs", "other",
 ]
 
+COMMDATA = "commdata"  # label added when website data (CommData) has been collected
+
 AI_PREFIXES = ("type/", "topic/", "use/")  # use/ only appears on links labelled by older versions
 MAX_TOPICS = 4
 

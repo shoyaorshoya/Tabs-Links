@@ -19,9 +19,18 @@
 
 
   {% set s = link.seo %}
+  {% if not link.want_commdata %}
+  <form class="box cd-offer" action="/links/{{ link.id }}/commdata" method="post">
+    <input type="hidden" name="on" value="1">
+    <span>Website data (CommData) isn't collected for this link.</span>
+    <button class="btn btn-sm" type="submit">Collect CommData</button>
+  </form>
+  {% elif link.want_commdata and not s and link.status == "done" %}
+  <p class="warn">CommData is switched on, but the page couldn't be read. Try "Re-read page".</p>
+  {% endif %}
   {% if s and s.get("title") is not none %}
   <section class="box seo">
-    <h3>Website data</h3>
+    <h3>Website data <span class="tag tag-cd">CommData</span></h3>
 
     {% if s.checks %}
     <ul class="checks">
@@ -57,10 +66,11 @@
       {% if s.canonical %}<tr><th>Canonical</th><td>{{ s.canonical }}</td></tr>{% endif %}
       {% if s.robots %}<tr><th>Robots</th><td>{{ s.robots }}</td></tr>{% endif %}
     </table>
-    <p class="muted">Collected when the page was saved. "Re-read page" refreshes it.</p>
+    <p class="muted">Collected when the page was read. "Re-read page" refreshes it.</p>
+    <form action="/links/{{ link.id }}/commdata" method="post" onsubmit="return confirm('Remove the website data and the CommData label from this link?')">
+      <input type="hidden" name="on" value="0"><button class="btn btn-light btn-sm" type="submit">Remove CommData</button>
+    </form>
   </section>
-  {% elif link.status == "done" %}
-  <p class="muted">No website data for this link (the page couldn't be opened, or it isn't a web page). Try "Re-read page".</p>
   {% endif %}
 
   <form class="box" action="/links/{{ link.id }}/edit" method="post">

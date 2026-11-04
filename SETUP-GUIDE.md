@@ -40,6 +40,13 @@ The *"My labels"* box is optional too: type your own labels separated by commas,
 `project-delia, client`. The AI adds its own topic labels from the page content and never
 removes yours. You can change labels later via **details**.
 
+**Website data for client work (CommData):** tick **Collect website data (CommData)** before
+saving. ClosedTabs then also collects SEO data, keywords, the marketing/tech stack and social
+profiles, and adds the **CommData** label. In the sidebar, **CommData** lists these websites
+grouped by your project labels (e.g. `project-delia`). Open a project and click **CSV** (or
+**CSV for Excel (;)** if Excel puts everything in one column) to export them as a table.
+For an already-saved link: open **details** → **Collect CommData**.
+
 **Several at once:** paste many links, one per line, then click **Save**.
 
 **All your open tabs:**

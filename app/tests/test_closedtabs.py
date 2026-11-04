@@ -87,7 +87,7 @@ def test_own_labels():
 
 def test_enrich_with_claude(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: enrich.parse_page(PAGE, url))
     sent = {}
 
     def fake_create(**kw):
@@ -109,7 +109,7 @@ def test_enrich_with_claude(monkeypatch):
 
 
 def test_enrich_without_key_and_unreachable_site(monkeypatch):
-    def boom(url):
+    def boom(url, **kw):
         raise OSError("offline")
     monkeypatch.setattr(enrich, "fetch", boom)
     i, _ = db.add("https://down.example", title="My title")
@@ -139,7 +139,7 @@ def test_web_flow(monkeypatch):
     from fastapi.testclient import TestClient
     from closedtabs import web
 
-    monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: enrich.parse_page(PAGE, url))
     with TestClient(web.app) as c:
         r = c.get("/")
         assert r.status_code == 200 and ">Enter<" in r.text and "password" not in r.text.lower()
@@ -238,7 +238,7 @@ def test_other_provider_out_of_credits_message(monkeypatch):
 
 def test_relabel_replaces_old_ai_labels_keeps_own(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: enrich.parse_page(PAGE, url))
     seen = {}
 
     def fake_label(url, page, ai_chars, note="", known=None):
@@ -275,7 +275,7 @@ def test_web_own_labels_and_relabel_all(monkeypatch):
     from fastapi.testclient import TestClient
     from closedtabs import web
 
-    monkeypatch.setattr(enrich, "fetch", lambda url: enrich.parse_page(PAGE, url))
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: enrich.parse_page(PAGE, url))
     c = TestClient(web.app)  # no lifespan: startup already ran once in test_web_flow
     if True:
         c.post("/add", data={"text": "https://a.example", "labels": "Project Delia, client"})
@@ -362,3 +362,79 @@ def test_detail_page_shows_website_data():
     r = TestClient(web.app).get(f"/links/{i}")
     assert "Website data" in r.text and "Meta Pixel" in r.text and "BeautySalon" in r.text
     assert "machiaj permanent" in r.text
+
+
+
+def _fetch_with_seo(url, analyze=False):
+    from closedtabs import seo
+    page = enrich.parse_page(SITE, url)
+    if analyze:
+        page["seo"] = seo.analyze(SITE, url)
+    return page
+
+
+def test_commdata_only_when_ticked(monkeypatch):
+    from fastapi.testclient import TestClient
+    from closedtabs import web
+
+    monkeypatch.setattr(enrich, "fetch", _fetch_with_seo)
+    c = TestClient(web.app)
+    c.post("/add", data={"text": "https://plain.example", "labels": "project-delia"})
+    c.post("/add", data={"text": "https://salon1.example\nhttps://salon2.example",
+                         "labels": "project-delia", "commdata": "1"})
+    c.post("/add", data={"text": "https://other.example", "labels": "project-x", "commdata": "1"})
+    for l in db.search("", limit=50):
+        enrich.enrich(l["id"])                        # run the background step synchronously
+    by_url = {l["url"]: l for l in db.search("", limit=50)}
+    assert by_url["https://plain.example"]["seo"] == {}
+    assert "commdata" not in by_url["https://plain.example"]["tags"]
+    assert "commdata" in by_url["https://salon1.example"]["tags"]
+    assert by_url["https://salon1.example"]["seo"]["tech"]
+    assert db.commdata_projects() == [("project-delia", 2), ("project-x", 1)]
+    assert [l["url"] for l in db.search("", ["commdata", "project-delia"])] == \
+        ["https://salon2.example", "https://salon1.example"]
+
+    r = c.get("/library?tag=commdata&tag=project-delia")
+    assert "CommData" in r.text and "project-delia" in r.text and "CSV for Excel" in r.text
+    assert 'name="commdata" value="1" checked' in r.text            # saving from this view ticks the box
+
+    # toggle off and on again
+    sid = by_url["https://salon1.example"]["id"]
+    c.post(f"/links/{sid}/commdata", data={"on": "0"})
+    assert db.get(sid)["seo"] == {} and "commdata" not in db.get(sid)["tags"]
+    c.post(f"/links/{sid}/commdata", data={"on": "1"})
+    enrich.enrich(sid)
+    assert "commdata" in db.get(sid)["tags"]
+
+    # editing labels by hand can't fake or drop the CommData label
+    c.post(f"/links/{sid}/edit", data={"tags": "project-delia", "note": ""})
+    assert "commdata" in db.get(sid)["tags"]
+
+
+def test_commdata_csv(monkeypatch):
+    import csv as _csv
+    import io
+    from fastapi.testclient import TestClient
+    from closedtabs import web
+
+    monkeypatch.setattr(enrich, "fetch", _fetch_with_seo)
+    c = TestClient(web.app)
+    c.post("/add", data={"text": "https://salon1.example", "labels": "project-delia", "commdata": "1"})
+    c.post("/add", data={"text": "https://other.example", "labels": "project-x", "commdata": "1"})
+    for l in db.search(""):
+        enrich.enrich(l["id"])
+
+    r = c.get("/export/commdata.csv?tag=project-delia&sep=semicolon")
+    assert r.status_code == 200 and "project-delia" in r.headers["content-disposition"]
+    text = r.content.decode("utf-8")
+    assert text.startswith("\ufeff")
+    rows = list(_csv.DictReader(io.StringIO(text[1:]), delimiter=";"))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["URL"] == "https://salon1.example" and row["Project labels"] == "project-delia"
+    assert "Meta Pixel" in row["Ad pixels"] and "Google Analytics 4" in row["Analytics"]
+    assert row["Instagram"].startswith("https://www.instagram.com/") and row["Language"] == "ro"
+    assert "machiaj permanent (3)" in row["Top phrases"] and int(row["SEO issues"]) >= 1
+
+    rows = list(_csv.DictReader(io.StringIO(c.get("/export/commdata.csv").content.decode("utf-8")[1:])))
+    assert {r["URL"] for r in rows} == {"https://salon1.example", "https://other.example"}
