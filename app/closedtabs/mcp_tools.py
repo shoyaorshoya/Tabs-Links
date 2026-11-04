@@ -25,22 +25,25 @@ mcp = MCPServer(
 
 def _brief(link: dict) -> dict:
     return {
-        "id": link["id"], "url": link["url"], "title": link["title"], "site": link["site"],
+        "id": link["id"], "url": link["url"], "title": link["title"], "source": link["source"],
+        "platform": link["source_kind"], "why_saved": link["why"],
         "summary": link["summary"] or link["description"], "tags": link["tags"], "note": link["note"],
     }
 
 
 @mcp.tool()
-def search_links(query: str = "", tag: str = "", limit: int = 15) -> list[dict]:
+def search_links(query: str = "", tag: str = "", why: str = "", source: str = "", limit: int = 15) -> list[dict]:
     """Search saved links by words (title, summary, page text, note, website technology and keywords)
     and/or one exact label.
 
     Args:
         query: words to look for, e.g. "landing page a/b testing". Empty = newest first.
         tag: optional exact label such as "type/tool", "topic/email-marketing", "project-delia".
+        why: optional exact "why I saved it" keyword of the owner, e.g. "inspiration" (see list_labels).
+        source: optional exact source name, e.g. "mero.ro", "sethblack/python-seo-analyzer", a YouTube channel.
         limit: max results (1-50).
     """
-    return [_brief(l) for l in db.search(query, tag, limit=max(1, min(limit, 50)))]
+    return [_brief(l) for l in db.search(query, tag, why=why, source=source, limit=max(1, min(limit, 50)))]
 
 
 @mcp.tool()
@@ -54,12 +57,13 @@ def get_link(link_id: int, max_chars: int = 20000) -> dict:
 
 
 @mcp.tool()
-def add_link(url: str, note: str = "", labels: str = "", commdata: bool = False) -> dict:
+def add_link(url: str, why: str = "", labels: str = "", commdata: bool = False, note: str = "") -> dict:
     """Save a new link. Labels and a summary are added automatically within about a minute.
 
     Args:
         url: the web address.
-        note: why it was saved (optional).
+        why: why it was saved, as comma-separated keywords, e.g. "inspiration, pricing" (optional).
+        note: a longer free-text note (optional).
         labels: the owner's own labels, comma separated, e.g. "project-delia, client" (optional).
         commdata: True to also collect website data (SEO, keywords, marketing stack, socials) and
             label it CommData. Use when the owner wants a communication analysis of the site.
@@ -70,7 +74,7 @@ def add_link(url: str, note: str = "", labels: str = "", commdata: bool = False)
         return {"error": "URL must start with http:// or https://"}
     from . import taxonomy
 
-    link_id, created = db.add(clean_url(url), note=note)
+    link_id, created = db.add(clean_url(url), note=note, why=taxonomy.why_keywords(why))
     own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
     if created:
         db.update(link_id, tags=own, want_commdata=int(commdata))
@@ -85,6 +89,11 @@ def add_link(url: str, note: str = "", labels: str = "", commdata: bool = False)
 
 
 @mcp.tool()
-def list_labels() -> list[dict]:
-    """All labels in use, with how many links carry each."""
-    return [{"label": t, "count": n} for t, n in db.tag_counts()]
+def list_labels() -> dict:
+    """Everything the library is organised by, with counts: labels (type/…, topic/…, own project
+    labels, commdata), the owner's 'why I saved it' keywords, and sources."""
+    return {
+        "labels": [{"label": t, "count": n} for t, n in db.tag_counts()],
+        "why_keywords": [{"why": w, "count": n} for w, n in db.why_counts()],
+        "sources": [{"source": s, "platform": k, "count": n} for s, k, n in db.source_counts()[:200]],
+    }

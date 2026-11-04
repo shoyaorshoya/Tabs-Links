@@ -108,3 +108,13 @@ def own_labels(text: str) -> list[str]:
         if s and s not in out:
             out.append(s)
     return out
+
+
+def why_keywords(text: str) -> list[str]:
+    """'Inspiration, pricing page ,inspiration' -> ['inspiration', 'pricing page']."""
+    out = []
+    for part in re.split(r"[,;\n]", text or ""):
+        k = " ".join(part.strip().lower().lstrip("#").split())[:60]
+        if k and k not in out:
+            out.append(k)
+    return out

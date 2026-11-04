@@ -1,49 +1,97 @@
 {% extends "base.html" %}
-{% macro label_name(t) %}{% if t == "commdata" %}CommData{% elif t.startswith("topic/") %}{{ t.split("/", 1)[1] }}{% else %}{{ t }}{% endif %}{% endmacro %}
-{% macro filter_url(tags) %}/library?{% for t in tags %}tag={{ t|urlencode }}{% if not loop.last %}&amp;{% endif %}{% endfor %}{% endmacro %}
+{% macro label_name(t) %}{% if t == "commdata" %}CommData{% elif "/" in t %}{{ t.split("/", 1)[1] }}{% else %}{{ t }}{% endif %}{% endmacro %}
+
+{% macro facet(title, key, items, active_fn, url_fn, extra="") %}
+  {% if items %}
+  <details class="facet" data-key="{{ key }}" open>
+    <summary>{{ title }} <span class="count">{{ items|length }}</span></summary>
+    {% for item in items[:8] %}{{ caller(item) }}{% endfor %}
+    {% if items|length > 8 %}
+    <details class="more"><summary>+ {{ items|length - 8 }} more</summary>
+      {% for item in items[8:] %}{{ caller(item) }}{% endfor %}
+    </details>
+    {% endif %}
+  </details>
+  {% endif %}
+{% endmacro %}
+
 {% block head %}{% if processing %}<meta http-equiv="refresh" content="6">{% endif %}{% endblock %}
 {% block body %}
 <header class="topbar">
   <a class="logo small" href="/">Closed<span>Tabs</span></a>
   <form class="search" action="/library" method="get">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search your links…" aria-label="Search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search everything: words, sources, tools, keywords…" aria-label="Search">
     {% for t in tag %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
+    {% for w in why %}<input type="hidden" name="why" value="{{ w }}">{% endfor %}
+    {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
+    {% if days %}<input type="hidden" name="days" value="{{ days }}">{% endif %}
   </form>
 </header>
 
 <div class="layout">
   <aside class="sidebar">
-    <a href="/library" class="side-link {% if not tag %}active{% endif %}">All links <span>{{ total }}</span></a>
+    <a href="/library" class="side-link {% if not filtered %}active{% endif %}">All links <span>{{ total }}</span></a>
+    <a href="{{ with_filters({}, days=7) }}" class="side-link {% if days == 7 and not tag and not why and not source %}active{% endif %}">Last 7 days <span>{{ week }}</span></a>
 
     {% set cd = (tags|selectattr(0, "equalto", "commdata")|list) %}
     {% if cd %}
-    <h4>CommData</h4>
-    <a href="{{ filter_url(['commdata']) }}" class="side-link {% if tag == ['commdata'] %}active{% endif %}">All websites <span>{{ cd[0][1] }}</span></a>
-    {% for p, n in projects %}
-      <a href="{{ filter_url(['commdata', p]) }}" class="side-link sub {% if tag == ['commdata', p] %}active{% endif %}">{{ p }} <span>{{ n }}</span></a>
-    {% endfor %}
+    <details class="facet" data-key="commdata" open>
+      <summary>CommData <span class="count">{{ cd[0][1] }}</span></summary>
+      <a href="{{ with_filters({}, tag=['commdata']) }}" class="side-link {% if tag == ['commdata'] %}active{% endif %}">All websites <span>{{ cd[0][1] }}</span></a>
+      {% for p, n in projects %}
+        <a href="{{ with_filters({}, tag=['commdata', p]) }}" class="side-link sub {% if tag == ['commdata', p] %}active{% endif %}">{{ p }} <span>{{ n }}</span></a>
+      {% endfor %}
+    </details>
     {% endif %}
 
-    {% set ns = namespace(group="") %}
-    {% for t, n in tags if t != "commdata" %}
-      {% set g = {"type": "type", "topic": "topics", "use": "older labels"}.get(t.split("/")[0], "my labels") if "/" in t else "my labels" %}
-      {% if g != ns.group %}<h4>{{ g }}</h4>{% set ns.group = g %}{% endif %}
-      <a href="{{ filter_url([t]) }}" class="side-link {% if tag == [t] %}active{% endif %}">{{ t.split("/", 1)[-1] }} <span>{{ n }}</span></a>
-    {% endfor %}
+    {% call(item) facet("Why", "why", whys, none, none) %}
+      {% set w, n = item %}
+      <a href="{{ with_filters(filters, why=('-' if w in why else '+', w)) }}" class="side-link why {% if w in why %}active{% endif %}">{{ w }} <span>{{ n }}</span></a>
+    {% endcall %}
 
-    <h4>more</h4>
-    <form action="/import" method="post" enctype="multipart/form-data" class="import">
-      <label class="side-link">Import bookmarks file…
-        <input type="file" name="file" accept=".html,.htm,.txt" onchange="this.form.submit()" hidden>
-      </label>
-      <label class="check small"><input type="checkbox" name="commdata" value="1"> with CommData</label>
-    </form>
-    <a class="side-link" href="/export.json">Export everything</a>
-    {% if ai and total %}
-    <form action="/relabel-all" method="post" onsubmit="return confirm('Ask the AI to label all {{ total }} links again? Your own labels and notes are kept. With a paid AI this costs a little per link.')">
-      <button class="side-link linklike" type="submit">Re-label all links</button>
-    </form>
-    {% endif %}
+    {% set own = tags|rejectattr(0, "in", ["commdata"])|selectattr(0, "ne", "")|list %}
+    {% set projects_all = own|rejectattr(0, "search", "/")|list %}
+    {% call(item) facet("Projects & my labels", "own", projects_all, none, none) %}
+      {% set t, n = item %}
+      <a href="{{ with_filters(filters, tag=('-' if t in tag else '+', t)) }}" class="side-link {% if t in tag %}active{% endif %}">{{ t }} <span>{{ n }}</span></a>
+    {% endcall %}
+
+    {% call(item) facet("Sources", "source", sources, none, none) %}
+      {% set s, k, n = item %}
+      <a href="{{ with_filters(filters, source=(none if s == source else s)) }}" class="side-link {% if s == source %}active{% endif %}" title="{{ k }}">
+        <em class="src-name">{{ s }}{% if k and k != "website" %} <small>{{ k }}</small>{% endif %}</em> <span>{{ n }}</span></a>
+    {% endcall %}
+
+    {% call(item) facet("Topics", "topic", own|selectattr(0, "search", "^topic/")|list, none, none) %}
+      {% set t, n = item %}
+      <a href="{{ with_filters(filters, tag=('-' if t in tag else '+', t)) }}" class="side-link {% if t in tag %}active{% endif %}">{{ label_name(t) }} <span>{{ n }}</span></a>
+    {% endcall %}
+
+    {% call(item) facet("Type", "type", own|selectattr(0, "search", "^type/")|list, none, none) %}
+      {% set t, n = item %}
+      <a href="{{ with_filters(filters, tag=('-' if t in tag else '+', t)) }}" class="side-link {% if t in tag %}active{% endif %}">{{ label_name(t) }} <span>{{ n }}</span></a>
+    {% endcall %}
+
+    {% call(item) facet("Older labels", "use", own|selectattr(0, "search", "^use/")|list, none, none) %}
+      {% set t, n = item %}
+      <a href="{{ with_filters(filters, tag=('-' if t in tag else '+', t)) }}" class="side-link {% if t in tag %}active{% endif %}">{{ label_name(t) }} <span>{{ n }}</span></a>
+    {% endcall %}
+
+    <details class="facet" data-key="more">
+      <summary>Import / export</summary>
+      <form action="/import" method="post" enctype="multipart/form-data" class="import">
+        <label class="side-link">Import bookmarks file…
+          <input type="file" name="file" accept=".html,.htm,.txt" onchange="this.form.submit()" hidden>
+        </label>
+        <label class="check small"><input type="checkbox" name="commdata" value="1"> with CommData</label>
+      </form>
+      <a class="side-link" href="/export.json">Export everything (backup)</a>
+      {% if ai and total %}
+      <form action="/relabel-all" method="post" onsubmit="return confirm('Ask the AI to label all {{ total }} links again? Your own labels, why-keywords and notes are kept. With a paid AI this costs a little per link.')">
+        <button class="side-link linklike" type="submit">Re-label all links</button>
+      </form>
+      {% endif %}
+    </details>
   </aside>
 
   <main class="content">
@@ -52,47 +100,91 @@
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"
         oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
       <button class="btn" type="submit">Save</button>
-      <input name="note" placeholder="Why am I saving this? (optional)">
-      <input name="labels" list="known-labels" placeholder="My labels, comma separated (optional)"
-        value="{% for t in tag if '/' not in t and t != 'commdata' %}{{ t }}{% endfor %}">
+      <input name="why" list="known-whys" placeholder="Why? Keywords, comma separated"
+        value="{{ why|join(', ') }}">
+      <input name="labels" list="known-labels" placeholder="Project / my labels, comma separated"
+        value="{{ tag|reject('search', '/')|reject('equalto', 'commdata')|join(', ') }}">
       <label class="check"><input type="checkbox" name="commdata" value="1" {% if commdata_view %}checked{% endif %}>
         <span>Collect website data (<b>CommData</b>): SEO, keywords, marketing stack, socials</span></label>
-      <datalist id="known-labels">{% for t in all_labels %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
+      <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
+      <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
     </form>
 
     {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
-    {% if not ai %}<p class="hint">AI labels are off. Add a Claude key, or any other AI provider's key, to switch them on (see the guide).</p>{% endif %}
+    {% if not ai %}<p class="hint">AI labels are off. Add an AI key, or use Ollama (see the guide).</p>{% endif %}
 
-    {% if q or tag %}
-    <div class="resultbar">
-      <p class="muted">{{ links|length }} result{{ "s" if links|length != 1 }}{% if tag %} for {% for t in tag %}<b>{{ label_name(t) }}</b>{% if not loop.last %} + {% endif %}{% endfor %}{% endif %}{% if q %} matching “{{ q }}”{% endif %} · <a href="/library">clear</a></p>
-      {% if commdata_view and links %}
-      <p class="export">Export CommData:
-        <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}">CSV</a>
-        <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}sep=semicolon" title="For Excel with Hungarian, Romanian, German… settings">CSV for Excel (;)</a>
-      </p>
-      {% endif %}
+    <div class="toolbar">
+      <div class="active-filters">
+        {% if filtered %}
+          {% if q %}<a class="fchip" href="{{ with_filters(filters, q=none) }}">“{{ q }}” ×</a>{% endif %}
+          {% for w in why %}<a class="fchip why" href="{{ with_filters(filters, why=('-', w)) }}">why: {{ w }} ×</a>{% endfor %}
+          {% for t in tag %}<a class="fchip {% if t == 'commdata' %}cd{% endif %}" href="{{ with_filters(filters, tag=('-', t)) }}">{{ label_name(t) }} ×</a>{% endfor %}
+          {% if source %}<a class="fchip" href="{{ with_filters(filters, source=none) }}">source: {{ source }} ×</a>{% endif %}
+          {% if days %}<a class="fchip" href="{{ with_filters(filters, days=none) }}">last {{ days }} days ×</a>{% endif %}
+          <a class="clear" href="/library">clear all</a>
+        {% endif %}
+        <span class="muted">{{ links|length }} link{{ "s" if links|length != 1 }}</span>
+      </div>
+      <div class="view-controls">
+        {% if commdata_view and links %}
+          <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}">CSV</a>
+          <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}sep=semicolon" title="For Excel with Hungarian, Romanian, German… settings">CSV (;)</a>
+        {% endif %}
+        <select onchange="location.href=this.value" aria-label="Sort">
+          <option value="{{ with_filters(filters, sort='new') }}" {% if sort == 'new' %}selected{% endif %}>Newest first</option>
+          <option value="{{ with_filters(filters, sort='old') }}" {% if sort == 'old' %}selected{% endif %}>Oldest first</option>
+          <option value="{{ with_filters(filters, sort='source') }}" {% if sort == 'source' %}selected{% endif %}>By source</option>
+        </select>
+        <button class="btn btn-light btn-sm" type="button" id="density" title="Switch between cards and a compact list">Compact</button>
+      </div>
     </div>
-    {% endif %}
 
+    <div class="list">
+    {% set ns = namespace(src=none) %}
     {% for l in links %}
+      {% if sort == "source" and l.source != ns.src %}<h3 class="group-head">{{ l.source or "—" }} {% if l.source_kind and l.source_kind != "website" %}<small>{{ l.source_kind }}</small>{% endif %}</h3>{% set ns.src = l.source %}{% endif %}
     <article class="card">
       {% if l.image %}<img class="thumb" src="{{ l.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
       <div class="card-body">
+        <div class="meta">
+          <a class="src" href="{{ with_filters(filters, source=l.source) }}" title="All links from {{ l.source }}">{{ l.source or l.site }}</a>
+          {% if l.source_kind and l.source_kind != "website" %}<span class="kind">{{ l.source_kind }}</span>{% endif %}
+          · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a>
+          {% for t in l.tags if t.startswith("type/") %}<span class="type">{{ label_name(t) }}</span>{% endfor %}
+        </div>
         <a class="card-title" href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title or l.url }}</a>
-        <div class="meta">{{ l.site }} · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a></div>
         {% if l.status == "pending" %}<p class="muted">⏳ Reading the page…{% if l.want_commdata %} (with CommData){% endif %}</p>
         {% else %}
           {% if l.summary or l.description %}<p class="summary">{{ l.summary or l.description }}</p>{% endif %}
           {% if l.error %}<p class="warn">{{ l.error }}</p>{% endif %}
         {% endif %}
         {% if l.note %}<p class="note">✎ {{ l.note }}</p>{% endif %}
-        <div class="tags">{% for t in l.tags %}<a class="tag {% if t == 'commdata' %}tag-cd{% elif '/' not in t %}tag-own{% endif %}" href="{{ filter_url([t]) }}">{{ label_name(t) }}</a>{% endfor %}</div>
+        <div class="tags">
+          {% for w in l.why %}<a class="tag tag-why" href="{{ with_filters(filters, why=('+', w)) }}">{{ w }}</a>{% endfor %}
+          {% for t in l.tags if t == "commdata" %}<a class="tag tag-cd" href="{{ with_filters({}, tag=['commdata']) }}">CommData</a>{% endfor %}
+          {% for t in l.tags if "/" not in t and t != "commdata" %}<a class="tag tag-own" href="{{ with_filters(filters, tag=('+', t)) }}">{{ t }}</a>{% endfor %}
+          {% for t in l.tags if t.startswith("topic/") or t.startswith("use/") %}<a class="tag" href="{{ with_filters(filters, tag=('+', t)) }}">{{ label_name(t) }}</a>{% endfor %}
+        </div>
       </div>
     </article>
     {% else %}
-      <p class="empty">{% if q or tag %}Nothing found. Try other words.{% else %}No links yet. Paste one above to start.{% endif %}</p>
+      <p class="empty">{% if filtered %}Nothing found. Remove a filter or try other words.{% else %}No links yet. Paste one above to start.{% endif %}</p>
     {% endfor %}
+    </div>
   </main>
 </div>
+<script>
+  // remember which sidebar blocks are open, and the list density (this browser only)
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  document.querySelectorAll("details.facet").forEach(d => {
+    const v = store.get("facet:" + d.dataset.key);
+    if (v !== null) d.open = v === "1";
+    d.addEventListener("toggle", () => store.set("facet:" + d.dataset.key, d.open ? "1" : "0"));
+  });
+  const btn = document.getElementById("density");
+  const apply = c => { document.body.classList.toggle("compact", c); btn.textContent = c ? "Cards" : "Compact"; };
+  apply(store.get("compact") === "1");
+  btn.addEventListener("click", () => { const c = !document.body.classList.contains("compact"); store.set("compact", c ? "1" : "0"); apply(c); });
+</script>
 {% endblock %}

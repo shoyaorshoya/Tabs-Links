@@ -49,7 +49,8 @@ and opens the browser. If it's already running, it only opens the browser.
 ## Part 2: Add links
 
 **One by one:** paste a link in the top box and press **Enter** (or click **Save**).
-The *"Why am I saving this?"* box is optional, but future-you will thank you.
+The *"Why?"* box takes **keywords, separated by commas**, e.g. `inspiration, pricing, competitor`.
+They're listed in the sidebar under **Why**, so you can later pull up everything you saved for the same reason.
 The *"My labels"* box is optional too: type your own labels separated by commas, e.g.
 `project-delia, client`. The AI adds its own topic labels from the page content and never
 removes yours. You can change labels later via **details**.

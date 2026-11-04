@@ -30,17 +30,22 @@ CREATE TABLE IF NOT EXISTS links (
   error       TEXT NOT NULL DEFAULT '',
   created_at  REAL NOT NULL,
   seo         TEXT NOT NULL DEFAULT '{}',     -- website data (see seo.py), JSON
-  want_commdata INTEGER NOT NULL DEFAULT 0    -- 1 = collect website data for this link
+  want_commdata INTEGER NOT NULL DEFAULT 0,   -- 1 = collect website data for this link
+  why         TEXT NOT NULL DEFAULT '[]',     -- "why am I saving this" keywords, JSON list
+  source      TEXT NOT NULL DEFAULT '',       -- readable source: mero.ro, user/repo, channel…
+  source_kind TEXT NOT NULL DEFAULT ''        -- website | GitHub | YouTube | LinkedIn | …
 );
 """
 
 FTS_SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
-  title, summary, description, tags, note, url, content, seo, tokenize='unicode61'
+  title, summary, description, tags, note, url, content, seo, why, source, tokenize='unicode61'
 );
 """
 
-FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo", "want_commdata")
+FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo", "want_commdata",
+          "why", "source", "source_kind")
+FTS_COLUMNS = {"seo", "why", "source"}
 
 
 def _migrate(c: sqlite3.Connection) -> None:
@@ -54,11 +59,24 @@ def _migrate(c: sqlite3.Connection) -> None:
         for r in c.execute("SELECT id, tags FROM links WHERE seo NOT IN ('', '{}')").fetchall():
             tags = sorted(set(json.loads(r[1])) | {"commdata"})
             c.execute("UPDATE links SET want_commdata=1, tags=? WHERE id=?", (json.dumps(tags), r[0]))
+    if "why" not in cols:
+        from .taxonomy import why_keywords
+        from .sources import from_url
+
+        c.execute("ALTER TABLE links ADD COLUMN why TEXT NOT NULL DEFAULT '[]'")
+        c.execute("ALTER TABLE links ADD COLUMN source TEXT NOT NULL DEFAULT ''")
+        c.execute("ALTER TABLE links ADD COLUMN source_kind TEXT NOT NULL DEFAULT ''")
+        # the old "Why am I saving this?" text becomes keywords; sources come from the URLs
+        for r in c.execute("SELECT id, url, note FROM links").fetchall():
+            name, kind = from_url(r[1])
+            c.execute("UPDATE links SET why=?, note='', source=?, source_kind=? WHERE id=?",
+                      (json.dumps(why_keywords(r[2]), ensure_ascii=False), name, kind, r[0]))
     fts_cols = {r[1] for r in c.execute("PRAGMA table_info(links_fts)")}
-    if fts_cols and "seo" not in fts_cols:
+    stale = bool(fts_cols) and not FTS_COLUMNS <= fts_cols
+    if stale:
         c.execute("DROP TABLE links_fts")
     c.executescript(FTS_SCHEMA)
-    if not fts_cols or "seo" not in fts_cols:
+    if not fts_cols or stale:
         for (link_id,) in c.execute("SELECT id FROM links").fetchall():
             _reindex(c, link_id)
     c.commit()
@@ -91,6 +109,7 @@ def _row(r: sqlite3.Row | None) -> dict | None:
     d = dict(r)
     d["tags"] = json.loads(d["tags"])
     d["seo"] = json.loads(d.get("seo") or "{}")
+    d["why"] = json.loads(d.get("why") or "[]")
     return d
 
 
@@ -102,23 +121,28 @@ def _reindex(c: sqlite3.Connection, link_id: int) -> None:
 
         tags = " ".join(json.loads(r["tags"])).replace("/", " ").replace("-", " ")
         seo_words = search_text(json.loads(r["seo"] or "{}"))
+        why = " ".join(json.loads(r["why"] or "[]"))
         c.execute(
-            "INSERT INTO links_fts(rowid,title,summary,description,tags,note,url,content,seo)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
-            (link_id, r["title"], r["summary"], r["description"], tags, r["note"], r["url"], r["content"], seo_words),
+            "INSERT INTO links_fts(rowid,title,summary,description,tags,note,url,content,seo,why,source)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (link_id, r["title"], r["summary"], r["description"], tags, r["note"], r["url"], r["content"],
+             seo_words, why, f"{r['source']} {r['source_kind']}"),
         )
 
 
-def add(url: str, title: str = "", note: str = "") -> tuple[int, bool]:
+def add(url: str, title: str = "", note: str = "", why: list[str] | None = None) -> tuple[int, bool]:
     """Insert a link. Returns (id, created). Existing URL -> (existing id, False)."""
+    from .sources import from_url
+
     with _lock:
         c = conn()
         r = c.execute("SELECT id FROM links WHERE url=?", (url,)).fetchone()
         if r:
             return r["id"], False
+        name, kind = from_url(url)
         cur = c.execute(
-            "INSERT INTO links(url,title,note,created_at) VALUES (?,?,?,?)",
-            (url, title, note, time.time()),
+            "INSERT INTO links(url,title,note,why,source,source_kind,created_at) VALUES (?,?,?,?,?,?,?)",
+            (url, title, note, json.dumps(why or [], ensure_ascii=False), name, kind, time.time()),
         )
         _reindex(c, cur.lastrowid)
         c.commit()
@@ -129,8 +153,9 @@ def update(link_id: int, **fields) -> None:
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     if "tags" in fields and not isinstance(fields["tags"], str):
         fields["tags"] = json.dumps(list(fields["tags"]))
-    if "seo" in fields and not isinstance(fields["seo"], str):
-        fields["seo"] = json.dumps(fields["seo"], ensure_ascii=False)
+    for k in ("seo", "why"):
+        if k in fields and not isinstance(fields[k], str):
+            fields[k] = json.dumps(fields[k], ensure_ascii=False)
     if not fields:
         return
     with _lock:
@@ -173,8 +198,14 @@ def _fts_query(q: str) -> str:
     return " ".join(f'"{w}"*' for w in words)
 
 
-def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int = 0) -> list[dict]:
-    """Newest first; with q, best match first. tag: one exact label or a list (all must match)."""
+SORTS = {"new": "l.created_at DESC", "old": "l.created_at ASC", "source": "l.source COLLATE NOCASE, l.created_at DESC"}
+
+
+def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int = 0,
+           why: str | list[str] = "", source: str = "", since_days: int | None = None,
+           sort: str = "new") -> list[dict]:
+    """Filter by words (q), labels (tag), why-keywords, source and age. All filters combine (AND).
+    Sorted newest first by default; with q and sort='new', best match first."""
     sql, args = "SELECT l.* FROM links l", []
     where = []
     fq = _fts_query(q) if q else ""
@@ -186,9 +217,20 @@ def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int
         if t:
             where.append("l.tags LIKE ?")
             args.append(f'%"{t}"%')
+    for w in ([why] if isinstance(why, str) else why):
+        if w:
+            where.append("l.why LIKE ?")
+            args.append("%" + json.dumps(w, ensure_ascii=False) + "%")
+    if source:
+        where.append("l.source = ?")
+        args.append(source)
+    if since_days:
+        where.append("l.created_at >= ?")
+        args.append(time.time() - since_days * 86400)
     if where:
         sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY " + ("bm25(links_fts)" if fq else "l.created_at DESC")
+    order = SORTS.get(sort, SORTS["new"])
+    sql += " ORDER BY " + ("bm25(links_fts)" if fq and sort == "new" else order)
     sql += " LIMIT ? OFFSET ?"
     args += [limit, offset]
     with _lock:
@@ -203,6 +245,29 @@ def tag_counts() -> list[tuple[str, int]]:
         def group(t):
             return {"type": 0, "topic": 1}.get(t.split("/")[0], 3) if "/" in t else 2
         return sorted(c.items(), key=lambda kv: (group(kv[0]), -kv[1], kv[0]))
+
+
+def why_counts() -> list[tuple[str, int]]:
+    with _lock:
+        c = Counter()
+        for r in conn().execute("SELECT why FROM links"):
+            c.update(json.loads(r["why"] or "[]"))
+        return sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def source_counts() -> list[tuple[str, str, int]]:
+    """(source, kind, count), most links first."""
+    with _lock:
+        rows = conn().execute(
+            "SELECT source, MAX(source_kind) AS kind, COUNT(*) AS n FROM links WHERE source != '' "
+            "GROUP BY source ORDER BY n DESC, source COLLATE NOCASE").fetchall()
+        return [(r["source"], r["kind"], r["n"]) for r in rows]
+
+
+def count_since(days: int) -> int:
+    with _lock:
+        return conn().execute("SELECT COUNT(*) FROM links WHERE created_at >= ?",
+                              (time.time() - days * 86400,)).fetchone()[0]
 
 
 def topic_labels(limit: int = 150) -> list[str]:

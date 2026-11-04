@@ -6,11 +6,11 @@ import queue
 import threading
 import time
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
 
-from . import db, providers, seo, taxonomy
+from . import db, providers, seo, sources, taxonomy
 
 log = logging.getLogger("closedtabs")
 
@@ -117,6 +117,29 @@ def fetch(url: str, analyze: bool = False) -> dict:
     return page
 
 
+OEMBED = {
+    "youtube": "https://www.youtube.com/oembed?format=json&url=",
+    "vimeo": "https://vimeo.com/api/oembed.json?url=",
+}
+
+
+def video_info(url: str) -> dict:
+    """Channel name and title of a YouTube/Vimeo video via the platform's official oEmbed endpoint
+    (no cookie-consent page in the way). Empty dict if not a video or not reachable."""
+    kind = sources.is_video(url)
+    if not kind:
+        return {}
+    try:
+        r = httpx.get(OEMBED[kind] + quote(url, safe=""), timeout=10, headers={"User-Agent": UA},
+                      follow_redirects=True)
+        r.raise_for_status()
+        d = r.json()
+        return {"author": (d.get("author_name") or "").strip(), "title": (d.get("title") or "").strip(),
+                "image": d.get("thumbnail_url") or "", "kind": "YouTube" if kind == "youtube" else "Vimeo"}
+    except (httpx.HTTPError, ValueError):
+        return {}
+
+
 # ── pipeline ─────────────────────────────────────────────────────────
 def enrich(link_id: int) -> None:
     link = db.get(link_id)
@@ -136,6 +159,18 @@ def enrich(link_id: int) -> None:
     if link["title"] and not page["title"]:
         page["title"] = link["title"]
 
+    # Readable source name (domain, GitHub user/repo, YouTube channel…)
+    page["source"], page["source_kind"] = sources.from_url(url)
+    video = video_info(url)
+    if video.get("author"):
+        page["source"], page["source_kind"] = video["author"], video["kind"]
+    if video.get("title"):
+        page["title"] = video["title"]
+        page["image"] = page.get("image") or video.get("image", "")
+        page["site"] = video["kind"]
+        if fetch_error:  # the page itself was blocked, but we know what the video is
+            fetch_error = ""
+
     tags = set(link["tags"])
     # Website data (CommData): only when asked for. Keep earlier data if the page couldn't be opened.
     if want and page.get("seo"):
@@ -151,7 +186,8 @@ def enrich(link_id: int) -> None:
     fields = dict(page, summary=page["description"], status="done", error=fetch_error)
     if ai_enabled():
         try:
-            result = providers.label(url, page, AI_CHARS, note=link["note"], known=db.topic_labels())
+            result = providers.label(url, page, AI_CHARS, note="; ".join(filter(None, [", ".join(link["why"]), link["note"]])),
+                                     known=db.topic_labels())
             fields["summary"] = result["summary"] or page["description"]
             # Replace earlier AI labels (type/ topic/ use/); keep labels the owner typed by hand.
             tags = {t for t in tags if not t.startswith(taxonomy.AI_PREFIXES)} | set(taxonomy.to_tags(result))

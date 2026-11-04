@@ -395,7 +395,7 @@ def test_commdata_only_when_ticked(monkeypatch):
         ["https://salon2.example", "https://salon1.example"]
 
     r = c.get("/library?tag=commdata&tag=project-delia")
-    assert "CommData" in r.text and "project-delia" in r.text and "CSV for Excel" in r.text
+    assert "CommData" in r.text and "project-delia" in r.text and "CSV (;)" in r.text
     assert 'name="commdata" value="1" checked' in r.text            # saving from this view ticks the box
 
     # toggle off and on again
@@ -438,3 +438,82 @@ def test_commdata_csv(monkeypatch):
 
     rows = list(_csv.DictReader(io.StringIO(c.get("/export/commdata.csv").content.decode("utf-8")[1:])))
     assert {r["URL"] for r in rows} == {"https://salon1.example", "https://other.example"}
+
+
+def test_why_keywords_and_sources_flow(monkeypatch):
+    from fastapi.testclient import TestClient
+    from closedtabs import web
+
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: enrich.parse_page(PAGE, url))
+    monkeypatch.setattr(enrich, "video_info", lambda url: {})
+    c = TestClient(web.app)
+    c.post("/add", data={"text": "https://www.mero.ro/judith", "why": "Inspiration, pricing page ,inspiration"})
+    c.post("/add", data={"text": "https://github.com/sethblack/python-seo-analyzer", "why": "tool to try"})
+    c.post("/add", data={"text": "https://blog.hubspot.com/x", "why": "inspiration"})
+    links = {l["url"]: l for l in db.search("")}
+    assert links["https://www.mero.ro/judith"]["why"] == ["inspiration", "pricing page"]
+    assert links["https://www.mero.ro/judith"]["source"] == "mero.ro"
+    assert links["https://github.com/sethblack/python-seo-analyzer"]["source"] == "sethblack/python-seo-analyzer"
+    assert links["https://github.com/sethblack/python-seo-analyzer"]["source_kind"] == "GitHub"
+    assert db.why_counts()[0] == ("inspiration", 2)
+    assert [l["url"] for l in db.search("", why="inspiration", source="hubspot.com")] == ["https://blog.hubspot.com/x"]
+    assert len(db.search("pricing")) == 1                                  # why keywords are searchable
+    assert db.search("", sort="source")[0]["source"] == "hubspot.com"      # alphabetical
+
+    r = c.get("/library?why=inspiration")
+    assert "why: inspiration" in r.text and "2 links" in r.text
+    assert "sethblack/python-seo-analyzer" in r.text                       # sidebar lists sources
+    r = c.get("/library?sort=source")
+    assert 'class="group-head"' in r.text
+
+    lid = links["https://www.mero.ro/judith"]["id"]
+    c.post(f"/links/{lid}/edit", data={"why": "competitor, inspiration", "tags": "", "note": "long text"})
+    assert db.get(lid)["why"] == ["competitor", "inspiration"] and db.get(lid)["note"] == "long text"
+
+
+def test_with_filters_helper():
+    from closedtabs.web import _with
+    f = {"q": "", "tag": ["commdata"], "why": [], "source": "", "days": 0, "sort": "new"}
+    assert _with(f, why=("+", "inspiration")) == "/library?tag=commdata&why=inspiration"
+    assert _with(f, tag=("-", "commdata")) == "/library"
+    assert _with(f, source="mero.ro", sort="old") == "/library?tag=commdata&source=mero.ro&sort=old"
+
+
+def test_youtube_channel_via_oembed(monkeypatch):
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: (_ for _ in ()).throw(OSError("consent page")))
+    calls = []
+
+    def fake_get(url, **kw):
+        calls.append(url)
+        return httpx.Response(200, json={"author_name": "Neuro Channel", "title": "Eye tracking 101",
+                                         "thumbnail_url": "https://i.ytimg.com/x.jpg"},
+                              request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(enrich.httpx, "get", fake_get)
+    i, _ = db.add("https://www.youtube.com/watch?v=abc123")
+    assert db.get(i)["source"] == "YouTube"
+    enrich.enrich(i)
+    link = db.get(i)
+    assert link["source"] == "Neuro Channel" and link["source_kind"] == "YouTube"
+    assert link["title"] == "Eye tracking 101" and link["error"] == ""      # blocked page, still known
+    assert calls[0].startswith("https://www.youtube.com/oembed?format=json&url=https%3A%2F%2F")
+
+
+def test_migration_moves_note_to_why_and_fills_sources(tmp_path):
+    import sqlite3
+    old = sqlite3.connect(tmp_path / "closedtabs.db")
+    old.executescript("""
+      CREATE TABLE links (id INTEGER PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', site TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',
+        note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', error TEXT NOT NULL DEFAULT '',
+        created_at REAL NOT NULL, seo TEXT NOT NULL DEFAULT '{}', want_commdata INTEGER NOT NULL DEFAULT 0);
+      CREATE VIRTUAL TABLE links_fts USING fts5(title, summary, description, tags, note, url, content, seo);
+      INSERT INTO links(url,title,note,created_at) VALUES ('https://www.mero.ro/j','Salon','Project Delia, Pricing',1);
+      INSERT INTO links(url,title,note,created_at) VALUES ('https://github.com/a/b','Repo','',2);""")
+    old.commit(); old.close()
+    db.reset_for_tests(tmp_path)
+    a, b = db.get(1), db.get(2)
+    assert a["why"] == ["project delia", "pricing"] and a["note"] == "" and a["source"] == "mero.ro"
+    assert b["why"] == [] and (b["source"], b["source_kind"]) == ("a/b", "GitHub")
+    assert [l["id"] for l in db.search("pricing")] == [1]

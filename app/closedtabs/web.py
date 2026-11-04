@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlencode
@@ -46,6 +47,31 @@ def _ago(ts: float) -> str:
 templates.env.filters["ago"] = _ago
 
 
+def _with(filters: dict, **changes) -> str:
+    """URL for the library with some filters changed. A value of None removes that filter;
+    for list filters, ('+', v) adds and ('-', v) removes one value."""
+    f = {k: (list(v) if isinstance(v, list) else v) for k, v in filters.items()}
+    for k, v in changes.items():
+        if isinstance(v, tuple):
+            op, val = v
+            cur = f.get(k) or []
+            f[k] = (cur + [val] if val not in cur else cur) if op == "+" else [x for x in cur if x != val]
+        else:
+            f[k] = v
+    params = []
+    for k, v in f.items():
+        if k == "sort" and v == "new":
+            continue
+        for x in (v if isinstance(v, list) else [v]):
+            if x not in (None, "", 0):
+                params.append((k, x))
+    return "/library" + ("?" + urlencode(params) if params else "")
+
+
+templates.env.globals["with_filters"] = _with
+templates.env.tests["search"] = lambda value, pattern: re.search(pattern, str(value)) is not None
+
+
 def _back(q: str = "", tag: str | list[str] = "", msg: str = "") -> RedirectResponse:
     tags = [tag] if isinstance(tag, str) else tag
     params = [("q", q)] if q else []
@@ -54,11 +80,11 @@ def _back(q: str = "", tag: str | list[str] = "", msg: str = "") -> RedirectResp
     return RedirectResponse("/library" + (f"?{urlencode(params)}" if params else ""), status_code=303)
 
 
-def _save_many(items: list[tuple[str, str]], note: str = "", labels: list[str] | None = None,
+def _save_many(items: list[tuple[str, str]], why: list[str] | None = None, labels: list[str] | None = None,
                commdata: bool = False) -> tuple[int, int]:
     added = dup = 0
     for url, title in items:
-        link_id, created = db.add(url, title=title, note=note)
+        link_id, created = db.add(url, title=title, why=why)
         if created:
             added += 1
             db.update(link_id, tags=labels or [], want_commdata=int(commdata))
@@ -68,6 +94,8 @@ def _save_many(items: list[tuple[str, str]], note: str = "", labels: list[str] |
             old = db.get(link_id)
             if labels:  # already saved: just add the new labels to it
                 db.update(link_id, tags=sorted(set(old["tags"]) | set(labels)))
+            if why:
+                db.update(link_id, why=old["why"] + [w for w in why if w not in old["why"]])
             if commdata and not old["want_commdata"]:  # now also wanted: collect it
                 db.update(link_id, want_commdata=1, status="pending", error="")
                 enrich.worker.submit(link_id)
@@ -89,11 +117,17 @@ def welcome(request: Request):
 
 
 @app.get("/library", response_class=HTMLResponse)
-def library(request: Request, q: str = "", tag: list[str] = Query([]), msg: str = ""):
+def library(request: Request, q: str = "", tag: list[str] = Query([]), why: list[str] = Query([]),
+            source: str = "", days: int = 0, sort: str = "new", msg: str = ""):
     tag = [t for t in tag if t]
-    links = db.search(q, tag)
+    why = [w for w in why if w]
+    links = db.search(q, tag, why=why, source=source, since_days=days or None, sort=sort, limit=500)
+    filters = {"q": q, "tag": tag, "why": why, "source": source, "days": days, "sort": sort}
     return templates.TemplateResponse(request, "library.html", {
-        "links": links, "q": q, "tag": tag, "msg": msg, "tags": db.tag_counts(),
+        "links": links, "q": q, "tag": tag, "why": why, "source": source, "days": days, "sort": sort,
+        "filters": filters, "filtered": bool(q or tag or why or source or days),
+        "msg": msg, "tags": db.tag_counts(), "whys": db.why_counts(), "sources": db.source_counts(),
+        "week": db.count_since(7),
         "projects": db.commdata_projects(), "commdata_view": taxonomy.COMMDATA in tag,
         "total": db.count(), "ai": enrich.ai_enabled(), "all_labels": [t for t, _ in db.tag_counts()],
         "processing": any(l["status"] == "pending" for l in links),
@@ -101,10 +135,12 @@ def library(request: Request, q: str = "", tag: list[str] = Query([]), msg: str 
 
 
 @app.post("/add")
-def add(text: str = Form(""), note: str = Form(""), labels: str = Form(""), commdata: str = Form("")):
+def add(text: str = Form(""), why: str = Form(""), note: str = Form(""), labels: str = Form(""),
+        commdata: str = Form("")):
     items = parse_text(text)
     own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
-    added, dup = _save_many(items, note.strip(), own, commdata=bool(commdata))
+    keywords = taxonomy.why_keywords(why or note)
+    added, dup = _save_many(items, keywords, own, commdata=bool(commdata))
     return _back(msg=_msg(added, dup))
 
 
@@ -150,14 +186,14 @@ def detail(request: Request, link_id: int):
 
 
 @app.post("/links/{link_id}/edit")
-def edit(link_id: int, tags: str = Form(""), note: str = Form("")):
+def edit(link_id: int, tags: str = Form(""), note: str = Form(""), why: str = Form("")):
     link = db.get(link_id)
     new = set(taxonomy.own_labels(tags))
     # The CommData label follows the data, not the text box.
     new.discard(taxonomy.COMMDATA)
     if link and link["want_commdata"] and link["seo"]:
         new.add(taxonomy.COMMDATA)
-    db.update(link_id, tags=sorted(new), note=note.strip())
+    db.update(link_id, tags=sorted(new), note=note.strip(), why=taxonomy.why_keywords(why))
     return RedirectResponse(f"/links/{link_id}", status_code=303)
 
 
@@ -194,7 +230,8 @@ def export():
 @app.get("/api/links")
 def api_links(q: str = "", tag: str = "", limit: int = 50):
     return JSONResponse([
-        {k: l[k] for k in ("id", "url", "title", "site", "summary", "tags", "note", "status", "created_at")}
+        {k: l[k] for k in ("id", "url", "title", "site", "source", "source_kind", "summary", "why", "tags",
+                           "note", "status", "created_at")}
         for l in db.search(q, tag, limit=min(limit, 500))
     ])
 

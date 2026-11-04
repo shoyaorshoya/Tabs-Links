@@ -31,7 +31,10 @@ def row(link: dict) -> dict:
     r = {
         "Website": s.get("title") or link["title"],
         "URL": link["url"],
+        "Source": link.get("source", ""),
+        "Platform": link.get("source_kind", ""),
         "Project labels": _join(own),
+        "Why saved": _join(link.get("why", [])),
         "Type": _join(t.split("/", 1)[1] for t in link["tags"] if t.startswith("type/")),
         "Topics": _join(t.split("/", 1)[1] for t in link["tags"] if t.startswith("topic/")),
         "Note": link.get("note", ""),
@@ -84,7 +87,7 @@ def row(link: dict) -> dict:
 def build(links: list[dict], semicolon: bool = False) -> str:
     rows = [row(l) for l in links]
     buf = io.StringIO()
-    fields = list(rows[0].keys()) if rows else list(row({"url": "", "title": "", "tags": [], "created_at": 0}).keys())
+    fields = list(rows[0].keys()) if rows else list(row({"url": "", "title": "", "tags": [], "why": [], "created_at": 0}).keys())
     w = csv.DictWriter(buf, fieldnames=fields, delimiter=";" if semicolon else ",", quoting=csv.QUOTE_MINIMAL)
     w.writeheader()
     w.writerows(rows)

@@ -8,7 +8,8 @@
 </header>
 <main class="detail">
   <h1>{{ link.title or link.url }}</h1>
-  <p class="meta"><a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.url }}</a> · saved {{ link.created_at|ago }}</p>
+  <p class="meta"><b><a href="/library?source={{ link.source|urlencode }}" title="All links from this source">{{ link.source }}</a></b>{% if link.source_kind and link.source_kind != "website" %} ({{ link.source_kind }}){% endif %}
+    · <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.url }}</a> · saved {{ link.created_at|ago }}</p>
 
   {% if link.status == "pending" %}<p class="muted">⏳ Reading the page…</p>{% endif %}
   {% if link.error %}<p class="warn">{{ link.error }}</p>{% endif %}
@@ -74,9 +75,11 @@
   {% endif %}
 
   <form class="box" action="/links/{{ link.id }}/edit" method="post">
+    <h3>Why I saved it <small class="muted">(keywords, comma separated)</small></h3>
+    <input name="why" value="{{ link.why|join(', ') }}" placeholder="e.g. inspiration, pricing, onboarding">
     <h3>Labels <small class="muted">(comma separated. Add your own, e.g. project-delia, client. The AI never removes those.)</small></h3>
     <input name="tags" value="{{ link.tags|join(', ') }}">
-    <h3>My note</h3>
+    <h3>Note <small class="muted">(free text, optional)</small></h3>
     <textarea name="note" rows="3">{{ link.note }}</textarea>
     <button class="btn" type="submit">Save changes</button>
   </form>
