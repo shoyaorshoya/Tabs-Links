@@ -54,6 +54,7 @@ config, and the wireframes for a future custom front end.
 
 ## Quick start (about 20 minutes)
 
+0. **New here? Follow [`SETUP-GUIDE.md`](SETUP-GUIDE.md): super simple, step by step.**
 1. **Run it.** With [Docker Desktop](https://www.docker.com/products/docker-desktop/) open, run `./start.sh` (Mac/Linux) or `.\start.ps1` (Windows). It creates `deploy/.env` with random secrets and starts everything.
    No server? Use a one-click host instead (see the architecture doc, "Hosting").
 2. **Create your account** at `http://localhost:3000`, then go to *Settings → API keys* and create a key.
