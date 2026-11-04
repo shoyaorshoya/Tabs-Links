@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "karakeep": {
+      "command": "npx",
+      "args": ["@karakeep/mcp"],
+      "env": {
+        "KARAKEEP_API_ADDR": "https://<YOUR_SERVER_ADDR>",
+        "KARAKEEP_API_KEY": "<YOUR_KARAKEEP_API_KEY>"
+      }
+    }
+  }
+}

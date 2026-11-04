@@ -1,0 +1,6 @@
+.env
+deploy/.env
+*.local.json
+tabs.txt
+tabs.html
+__pycache__/
