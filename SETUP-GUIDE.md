@@ -81,6 +81,22 @@ New links will now get your labels and a short description automatically.
 
 ---
 
+## Adding links one by one
+
+Pick whichever is handiest:
+
+1. **Paste it in the app.** Open localhost:3000, click the **NEW ITEM** box at the top, paste the link, and press **Enter**.
+   *If you paste several links (one per line), it asks whether to save them as separate bookmarks. Choose yes.*
+2. **Extension button.** On any page, click the extension icon.
+3. **Keyboard shortcut.** On any page, press **Ctrl + Shift + E**, the extension's shortcut. It may be Cmd + Shift + E on Mac. You can change it at `chrome://extensions/shortcuts`.
+4. **Ask Claude** (once it's connected): *"Save this link: https://…"*
+5. **From your phone:** the Karakeep app for [iOS](https://apps.apple.com/us/app/karakeep-app/id6479258022) or [Android](https://play.google.com/store/apps/details?id=app.hoarder.hoardermobile) adds Karakeep to the Share button.
+   *This only works once the app runs on a server, or while the phone is on the same Wi-Fi and you use your computer's local address instead of `localhost`.*
+
+Each link gets its title, image and (with AI on) labels and a summary, usually within a minute.
+
+---
+
 ## Everyday use
 
 | I want to… | Do this |
