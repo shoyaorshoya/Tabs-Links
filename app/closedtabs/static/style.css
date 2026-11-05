@@ -196,3 +196,4 @@ body.compact .card .type { margin-left: 4px; }
 @media (prefers-color-scheme: dark) { .cmp td.ok { color: #4ade80; } }
 .newnote { margin-left: auto; font-size: 13px; white-space: nowrap; }
 .card:has(.src[href*="kind=note"]) { border-left: 3px solid var(--why); }
+.side-note { font-size: 12px; color: var(--muted); margin: 0 8px 8px; }

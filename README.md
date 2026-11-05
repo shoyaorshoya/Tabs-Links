@@ -23,6 +23,7 @@ description, and makes it searchable, for you and for Claude.
 | Import a bookmarks file | Brings in all your old tabs/bookmarks at once |
 | Type text without a link | Saves a **note**; `[[Title]]` links notes and links together (with backlinks) |
 | Open a CommData project → Compare | Competitor comparison side by side + shared keywords / tools |
+| Set `OBSIDIAN_VAULT` | Two-way sync with Obsidian: one Markdown file per item + project / why / source pages |
 | Ask Claude | Claude searches, reads and saves links through the built-in MCP connector |
 
 ## Project layout
@@ -36,6 +37,7 @@ description, and makes it searchable, for you and for Claude.
 | `app/closedtabs/` | The app (Python, FastAPI, SQLite) |
 | `app/closedtabs/providers.py` | AI providers: Claude (Anthropic SDK) or any OpenAI-compatible API |
 | `app/closedtabs/commdata_csv.py` | CommData CSV export (one row per website) |
+| `app/closedtabs/obsidian.py` | Two-way Obsidian vault sync |
 | `app/closedtabs/seo.py` | Website data + the list of recognised marketing technologies |
 | `app/closedtabs/taxonomy.py` | The label lists and the AI instructions. Edit here to change labels. |
 | `deploy/` | Docker setup + settings file (`.env`) |

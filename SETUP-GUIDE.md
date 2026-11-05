@@ -123,6 +123,30 @@ If a link shows an orange message (e.g. "key rejected"), fix the .env line it na
 
 ---
 
+## Obsidian (optional, two-way)
+
+ClosedTabs can mirror everything into your Obsidian vault as Markdown files, and take your edits back.
+
+1. Find your vault folder (the one that contains the hidden `.obsidian` folder). In Finder:
+   right-click it, hold **Option**, choose **Copy "…" as Pathname**.
+2. Open `deploy/.env` and paste it in double quotes:
+   `OBSIDIAN_VAULT="/Users/you/path/to/My Vault"`
+3. Restart ClosedTabs. It now syncs every 30 seconds, and **⟳ Sync with Obsidian** (sidebar → Import / export) syncs right away.
+
+In Obsidian you'll find a **ClosedTabs** folder: `ClosedTabs.md` (start page), `Links/`, `Notes/`,
+`Projects/`, `Why/`, `Sources/`. Graph view and backlinks work out of the box.
+
+**What syncs back from Obsidian:** the text under the line *"Your text below is synced…"*, and the
+`why` and `projects` properties. **New notes** you create in `ClosedTabs/Notes/` are imported
+(optional properties: `why`, `projects`). Everything above that line is regenerated, so write below it.
+If the same text was changed on both sides between two syncs, Obsidian's version wins.
+
+**If the vault is in iCloud Drive** (common with Obsidian): the background autostart may not be
+allowed to write there (macOS privacy rules). Start ClosedTabs with **ClosedTabs.command** instead,
+and allow access if macOS asks. The sidebar shows a clear message if writing is blocked.
+
+---
+
 ## Part 4: Connect Claude
 
 See [`claude/README.md`](claude/README.md). It's 3 small steps for the Claude desktop app.

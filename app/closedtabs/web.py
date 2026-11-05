@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import commdata_csv, compare, db, enrich, notes, providers, taxonomy
+from . import commdata_csv, compare, db, enrich, notes, obsidian, providers, taxonomy
 from .mcp_tools import mcp
 from .urls import parse_bookmarks_html, parse_text
 
@@ -27,6 +27,7 @@ mcp_app = mcp.streamable_http_app(streamable_http_path="/mcp", stateless_http=Tr
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
     enrich.worker.start()
+    obsidian.auto.start()
     async with mcp.session_manager.run():
         yield
 
@@ -130,7 +131,7 @@ def library(request: Request, q: str = "", tag: list[str] = Query([]), why: list
         "kind": kind, "n_notes": db.count_kind("note"), "n_links": db.count_kind("link"),
         "filters": filters, "filtered": bool(q or tag or why or source or days or kind),
         "msg": msg, "tags": db.tag_counts(), "whys": db.why_counts(), "sources": db.source_counts(),
-        "week": db.count_since(7),
+        "week": db.count_since(7), "obsidian": obsidian.status | {"enabled": obsidian.enabled()},
         "projects": db.commdata_projects(), "commdata_view": taxonomy.COMMDATA in tag,
         "total": db.count(), "ai": enrich.ai_enabled(), "all_labels": [t for t, _ in db.tag_counts()],
         "processing": any(l["status"] == "pending" for l in links),
@@ -250,6 +251,17 @@ def retry(link_id: int):
     return RedirectResponse(f"/links/{link_id}", status_code=303)
 
 
+@app.post("/obsidian/sync")
+def obsidian_sync():
+    if not obsidian.enabled():
+        return _back(msg="Obsidian isn't set up yet: add OBSIDIAN_VAULT to deploy/.env (see the guide).")
+    st = obsidian.sync()
+    if st["error"]:
+        return _back(msg=st["error"])
+    return _back(msg=f"Synced with Obsidian: {st['written']} file(s) updated, {st['pulled']} change(s) "
+                     f"taken from Obsidian, {st['imported']} new note(s) imported.")
+
+
 @app.post("/relabel-all")
 def relabel_all():
     if not enrich.ai_enabled():
@@ -284,7 +296,9 @@ def api_links(q: str = "", tag: str = "", limit: int = 50):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "links": db.count(), "ai": enrich.ai_enabled(), **providers.describe()}
+    return {"ok": True, "links": db.count(), "ai": enrich.ai_enabled(), **providers.describe(),
+            "obsidian": {"enabled": obsidian.enabled(), "folder": str(obsidian.vault_dir() or ""),
+                         "last_sync": obsidian.status["last_sync"], "error": obsidian.status["error"]}}
 
 
 # MCP endpoint (/mcp) for Claude. Mounted last so the routes above win.

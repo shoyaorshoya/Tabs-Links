@@ -181,9 +181,12 @@ def add_note(text: str, title: str = "", why: list[str] | None = None, tags: lis
 
 def resolve_ref(ref: str) -> dict | None:
     """Find the item a [[reference]] points to: '#12', an exact title, or a source name."""
-    ref = ref.strip()
+    ref = ref.split("|", 1)[0].strip()  # Obsidian style [[File name|shown text]]
+    m = re.fullmatch(r".* \((\d+)\)", ref)       # file names made unique as "Title (12)"
     with _lock:
         c = conn()
+        if m and (r := c.execute("SELECT * FROM links WHERE id=?", (int(m.group(1)),)).fetchone()):
+            return _row(r)
         if re.fullmatch(r"#\d+", ref):
             return _row(c.execute("SELECT * FROM links WHERE id=?", (int(ref[1:]),)).fetchone())
         r = c.execute("SELECT * FROM links WHERE LOWER(title)=LOWER(?) ORDER BY kind='note' DESC, id LIMIT 1",

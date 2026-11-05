@@ -23,8 +23,9 @@ def render(text: str) -> str:
         for m in re.finditer(f"{REF.pattern}|{URL.pattern}", para):
             pieces.append(html.escape(para[pos:m.start()]))
             if m.group(1) is not None:
-                ref = m.group(1).strip()
-                item = db.resolve_ref(ref)
+                raw = m.group(1).strip()
+                ref = raw.split("|", 1)[1].strip() if "|" in raw else raw   # [[target|shown]]
+                item = db.resolve_ref(raw)
                 if item:
                     pieces.append(f'<a class="wikilink" href="/links/{item["id"]}">{html.escape(ref)}</a>')
                 else:

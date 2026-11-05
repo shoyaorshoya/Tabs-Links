@@ -81,6 +81,13 @@
 
     <details class="facet" data-key="more">
       <summary>Import / export</summary>
+      <form action="/obsidian/sync" method="post">
+        <button class="side-link linklike" type="submit">⟳ Sync with Obsidian</button>
+      </form>
+      {% if obsidian.enabled %}
+        <p class="side-note">{% if obsidian.error %}<span class="warn">{{ obsidian.error }}</span>
+        {% elif obsidian.last_sync %}Auto-syncs every 30 s · last: {{ obsidian.last_sync|ago }}{% else %}Syncs automatically{% endif %}</p>
+      {% else %}<p class="side-note">Set OBSIDIAN_VAULT in deploy/.env to connect your vault.</p>{% endif %}
       <form action="/import" method="post" enctype="multipart/form-data" class="import">
         <label class="side-link">Import bookmarks file…
           <input type="file" name="file" accept=".html,.htm,.txt" onchange="this.form.submit()" hidden>

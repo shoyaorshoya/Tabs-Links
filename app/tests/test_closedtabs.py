@@ -602,3 +602,76 @@ def test_compare_view(monkeypatch):
     assert "Compare: project-delia" in page and "Common tools" in page and "Only one site uses" in page
     lib = TestClient(web.app).get("/library?tag=commdata&tag=project-delia").text
     assert "/compare?tag=project-delia" in lib
+
+
+def test_obsidian_two_way_sync(monkeypatch, tmp_path):
+    from closedtabs import obsidian, seo
+
+    vault = tmp_path / "vault"
+    monkeypatch.setenv("OBSIDIAN_VAULT", str(vault))
+    monkeypatch.setattr("closedtabs.enrich.worker.submit", lambda i: None)
+    root = vault / "ClosedTabs"
+
+    a, _ = db.add("https://www.mero.ro/judith", why=["competitor"])
+    db.update(a, title="Judith: PMU / Oradea", summary="Salon page.", source="mero.ro",
+              tags=["type/company", "topic/permanent-makeup", "project-delia", "commdata"],
+              seo=seo.analyze(SITE, "https://www.mero.ro/judith"), want_commdata=1, status="done")
+    b, _ = db.add("https://other.example/x")
+    db.update(b, title="Judith: PMU / Oradea", status="done")                 # same title -> unique file name
+    n = db.add_note(f"Compare [[mero.ro]] and [[#{a}]].", title="Delia ideas", why=["insight"], tags=["project-delia"])
+
+    st = obsidian.sync()
+    assert st["error"] == "" and st["written"] > 0
+    fa = root / "Links" / "Judith- PMU - Oradea.md"
+    fb = root / "Links" / f"Judith- PMU - Oradea ({b}).md"
+    fn = root / "Notes" / "Delia ideas.md"
+    assert fa.exists() and fb.exists() and fn.exists()
+    props, above, below = obsidian._split(fa.read_text())
+    assert props["closedtabs_id"] == a and props["why"] == ["competitor"] and props["projects"] == ["project-delia"]
+    assert "why/competitor" in props["tags"] and "topic/permanent-makeup" in props["tags"]
+    assert "Website data (CommData)" in above and "Meta Pixel" in above
+    assert "[[project-delia]]" in above and "[[Sources - mero.ro|mero.ro]]" in above
+    note_text = obsidian._split(fn.read_text())[2]
+    assert "[[Sources - mero.ro|mero.ro]]" in note_text and "[[Judith- PMU - Oradea|#" in note_text
+    assert (root / "Projects" / "project-delia.md").exists() and (root / "Why" / "Why - insight.md").exists()
+    assert (root / "ClosedTabs.md").exists()
+    # nothing changed -> nothing rewritten
+    assert obsidian.sync()["written"] == 0
+
+    # edit in Obsidian: text below the marker + properties
+    t = fa.read_text().replace("why:\n- competitor", "why:\n- competitor\n- pricing")
+    t = t.replace("projects:\n- project-delia", "projects:\n- project-delia\n- client-x")
+    fa.write_text(t.rstrip("\n") + "\nGreat trust signals.\n")
+    fn.write_text(fn.read_text().replace("Compare", "Compared"))
+    st = obsidian.sync()
+    assert st["pulled"] == 2
+    assert db.get(a)["note"] == "Great trust signals." and db.get(a)["why"] == ["competitor", "pricing"]
+    assert {"project-delia", "client-x", "commdata"} <= set(db.get(a)["tags"])
+    assert db.get(n)["content"].startswith("Compared [[mero.ro]]")          # back to ClosedTabs-style links
+    assert db.backlinks(db.get(a))[0]["id"] == n
+
+    # edit in ClosedTabs -> file follows; nothing pulled back
+    db.update(a, note="Updated in the app.")
+    st = obsidian.sync()
+    assert st["pulled"] == 0 and obsidian._split(fa.read_text())[2] == "Updated in the app."
+
+    # a new note written in Obsidian is imported
+    (root / "Notes" / "Workshop plan.md").write_text("---\nwhy: [workshop]\nprojects: [project-delia]\n---\nIntro to [[Delia ideas]].\n")
+    st = obsidian.sync()
+    assert st["imported"] == 1
+    w = db.search("", kind="note", why="workshop")[0]
+    assert w["title"] == "Workshop plan" and w["content"] == "Intro to [[Delia ideas]]." and "project-delia" in w["tags"]
+    assert obsidian._split((root / "Notes" / "Workshop plan.md").read_text())[0]["closedtabs_id"] == w["id"]
+
+    # rename + delete in ClosedTabs
+    db.update(n, title="Delia positioning")
+    db.delete(b)
+    obsidian.sync()
+    assert not fn.exists() and (root / "Notes" / "Delia positioning.md").exists() and not fb.exists()
+    assert not (root / "Projects" / "client-y.md").exists()
+
+
+def test_obsidian_off_by_default(monkeypatch):
+    from closedtabs import obsidian
+    monkeypatch.delenv("OBSIDIAN_VAULT", raising=False)
+    assert not obsidian.enabled() and obsidian.sync()["enabled"] is False
