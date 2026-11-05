@@ -130,7 +130,31 @@ def _msg(added: int, dup: int) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def welcome(request: Request):
-    return templates.TemplateResponse(request, "welcome.html", {"count": db.count()})
+    recent, seen = [], set()
+    for it in db.search("", limit=60):  # newest first: the tabs you filed most recently
+        name = it["source"] if it["kind"] == "link" else "note"
+        if name and name not in seen:
+            seen.add(name)
+            recent.append(name)
+        if len(recent) == 5:
+            break
+    return templates.TemplateResponse(request, "welcome.html", {"count": db.count(), "recent": recent})
+
+
+def _wants_json(request: Request) -> bool:
+    return request.url.path.startswith(("/api/", "/mcp")) or request.headers.get("accept", "").startswith("application/json")
+
+
+@app.exception_handler(404)
+async def not_found(request: Request, exc):
+    if _wants_json(request):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return templates.TemplateResponse(request, "404.html", {}, status_code=404)
+
+
+@app.get("/robots.txt")
+def robots():
+    return Response("User-agent: *\nDisallow: /\n", media_type="text/plain")  # a private library: never index
 
 
 @app.get("/library", response_class=HTMLResponse)
@@ -421,5 +445,16 @@ def health():
                          "last_sync": obsidian.status["last_sync"], "error": obsidian.status["error"]}}
 
 
-# MCP endpoint (/mcp) for Claude. Mounted last so the routes above win.
-app.mount("/", mcp_app)
+# MCP endpoint (/mcp) for Claude. Mounted last so the routes above win; any other unknown
+# address gets the designed 404 page instead of the connector's plain-text error.
+async def mcp_or_404(scope, receive, send):
+    if scope["type"] == "http" and not scope["path"].startswith("/mcp"):
+        request = Request(scope, receive)
+        response = (JSONResponse({"detail": "Not Found"}, 404) if _wants_json(request)
+                    else templates.TemplateResponse(request, "404.html", {}, status_code=404))
+        await response(scope, receive, send)
+        return
+    await mcp_app(scope, receive, send)
+
+
+app.mount("/", mcp_or_404)

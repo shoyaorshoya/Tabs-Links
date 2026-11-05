@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not found · ClosedTabs{% endblock %}
+{% block body %}
+{% include "_nav.html" %}
+<main id="main" class="page notfound">
+  <span class="tab tab-lone" aria-hidden="true">404</span>
+  <h1>This card isn't in the drawer</h1>
+  <p class="muted">It may have been deleted, or the address is mistyped.</p>
+  <p><a class="btn" href="/library">Back to the library</a></p>
+</main>
+{% endblock %}

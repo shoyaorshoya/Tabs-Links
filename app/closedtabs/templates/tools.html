@@ -2,11 +2,11 @@
 {% block title %}Tools · ClosedTabs{% endblock %}
 {% block body %}
 {% include "_nav.html" %}
-<main class="detail">
+<main id="main" class="detail">
   <h1>Tools</h1>
 
   <section class="box">
-    <h3>Save from any page in one click</h3>
+    <h2>Save from any page in one click</h2>
     <p>Drag this button to your browser's <b>bookmarks bar</b>:</p>
     <p class="bm-wrap"><a class="bookmarklet" href="{{ bookmarklet }}" onclick="event.preventDefault(); alert('Drag me to the bookmarks bar, don\'t click me here 🙂');">＋ Save to ClosedTabs</a></p>
     <ol class="steps">
@@ -19,7 +19,7 @@
   </section>
 
   <section class="box">
-    <h3>Claude</h3>
+    <h2>Claude</h2>
     <p>Let Claude search, read and add to your library.</p>
     <ul class="steps">
       <li><b>Claude desktop app (Mac):</b> double-click <code>Connect-Claude.command</code> in the ClosedTabs folder, then quit and reopen Claude.</li>
@@ -29,7 +29,7 @@
   </section>
 
   <section class="box">
-    <h3>Status</h3>
+    <h2>Status</h2>
     <table class="facts">
       <tr><th>AI labels</th><td>{% if ai.provider %}{{ ai.provider }} · {{ ai.model }}{% else %}off{% endif %}</td></tr>
       <tr><th>Obsidian</th><td>{{ "connected" if obsidian else "not connected (Connect-Obsidian.command)" }}</td></tr>

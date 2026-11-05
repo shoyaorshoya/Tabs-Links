@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block title %}{% if q %}“{{ q }}” · {% endif %}Library · ClosedTabs{% endblock %}
 {% macro label_name(t) %}{% if t == "commdata" %}CommData{% elif "/" in t %}{{ t.split("/", 1)[1] }}{% else %}{{ t }}{% endif %}{% endmacro %}
 
 {% macro facet(title, key, items, active_fn, url_fn, extra="") %}
@@ -96,22 +97,24 @@
     </details>
   </aside>
 
-  <main class="content">
+  <main id="main" class="content">
+    <h1 class="vh">Library</h1>
     <button type="button" class="filters-toggle btn btn-light btn-sm" onclick="document.body.classList.toggle('show-filters')">☰ Filters{% if filtered %} (on){% endif %}</button>
     <form class="add" action="/add" method="post">
-      <textarea name="text" rows="1" placeholder="Paste a link, or type a quick note…" title="Several links: one per line. Shift + Enter = new line." required
+      <textarea aria-label="Paste a link, or type a quick note" name="text" rows="1" placeholder="Paste a link, or type a quick note…" title="Several links: one per line. Shift + Enter = new line." required
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"
-        oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
+        oninput="this.rows=Math.min(8,this.value.split('\n').length)"></textarea>
       <button class="btn" type="submit">Save</button>
-      <input name="why" list="known-whys" placeholder="Why? Keywords, comma separated"
+      <input aria-label="Why? Keywords, comma separated" name="why" list="known-whys" placeholder="Why? Keywords, comma separated"
         value="{{ why|join(', ') }}">
-      <input name="labels" list="known-labels" placeholder="Project / my labels, comma separated"
+      <input aria-label="Project / my labels, comma separated" name="labels" list="known-labels" placeholder="Project / my labels, comma separated"
         value="{{ tag|reject('search', '/')|reject('equalto', 'commdata')|join(', ') }}">
       <label class="check"><input type="checkbox" name="commdata" value="1" {% if commdata_view %}checked{% endif %}>
         <span>Collect website data (<b>CommData</b>): SEO, keywords, marketing stack, socials</span>
         <a class="newnote" href="/notes/new?why={{ why|join(', ')|urlencode }}&amp;labels={{ tag|reject('search', '/')|reject('equalto', 'commdata')|join(', ')|urlencode }}">📝 Write a longer note</a></label>
       <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
       <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
+      <p class="kbd-hint">Tip: press <kbd>Cmd</kbd> + <kbd>V</kbd> anywhere on this page to paste a link here · <kbd>/</kbd> jumps to search</p>
     </form>
 
     {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
@@ -149,20 +152,20 @@
     <div class="list">
     {% set ns = namespace(src=none) %}
     {% for l in links %}
-      {% if sort == "source" and l.source != ns.src %}<h3 class="group-head">{{ l.source or "—" }} {% if l.source_kind and l.source_kind != "website" %}<small>{{ l.source_kind }}</small>{% endif %}</h3>{% set ns.src = l.source %}{% endif %}
-    <article class="card">
+      {% if sort == "source" and l.source != ns.src %}<h2 class="group-head">{{ l.source or "No source" }} {% if l.source_kind and l.source_kind != "website" %}<small>{{ l.source_kind }}</small>{% endif %}</h2>{% set ns.src = l.source %}{% endif %}
+    <article class="card{% if l.kind == 'note' %} card-note{% endif %}">
       {% if l.image %}<img class="thumb" src="{{ l.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
       <div class="card-body">
         {% if l.kind == "note" %}
-        <div class="meta"><a class="src" href="{{ with_filters(filters, kind='note') }}">📝 Note</a> · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">open</a>
+        <a class="tab" href="{{ with_filters(filters, kind='note') }}" title="All notes">note</a>
+        <div class="meta">{{ l.created_at|ago }} · <a href="/links/{{ l.id }}">open</a>
           <form class="inline" action="/links/{{ l.id }}/archive" method="post"><input type="hidden" name="on" value="{{ 0 if l.archived else 1 }}"><input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"><button class="linklike muted-btn">{{ "restore" if l.archived else "archive" }}</button></form></div>
         <a class="card-title" href="/links/{{ l.id }}">{{ l.title }}</a>
         {% if l.content %}<p class="summary">{{ l.content|plain_refs|truncate(300) }}</p>{% endif %}
         {% else %}
+        <a class="tab" href="{{ with_filters(filters, source=l.source) }}" title="All links from {{ l.source }}">{{ l.source or l.site }}{% if l.source_kind and l.source_kind != "website" %}<span class="kind"> · {{ l.source_kind }}</span>{% endif %}</a>
         <div class="meta">
-          <a class="src" href="{{ with_filters(filters, source=l.source) }}" title="All links from {{ l.source }}">{{ l.source or l.site }}</a>
-          {% if l.source_kind and l.source_kind != "website" %}<span class="kind">{{ l.source_kind }}</span>{% endif %}
-          · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a>
+          {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a>
           <form class="inline" action="/links/{{ l.id }}/archive" method="post"><input type="hidden" name="on" value="{{ 0 if l.archived else 1 }}"><input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"><button class="linklike muted-btn" title="{{ 'Bring back' if l.archived else 'Hide from lists (not deleted)' }}">{{ "restore" if l.archived else "archive" }}</button></form>
           {% for t in l.tags if t.startswith("type/") %}<span class="type">{{ label_name(t) }}</span>{% endfor %}
         </div>
@@ -189,6 +192,18 @@
   </main>
 </div>
 <script>
+  // Paste anywhere on the page (Cmd/Ctrl + V) and it lands in the "save" box; "/" jumps to search.
+  const box = document.querySelector('.add textarea');
+  const typing = el => el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+  document.addEventListener("paste", e => {
+    if (!box || typing(document.activeElement)) return;
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if (!text) return;
+    e.preventDefault(); box.value = text; box.focus(); box.dispatchEvent(new Event("input"));
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "/" && !typing(document.activeElement)) { e.preventDefault(); document.querySelector('.topbar .search input')?.focus(); }
+  });
   // remember which sidebar blocks are open, and the list density (this browser only)
   const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
                   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };

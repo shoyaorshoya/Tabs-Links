@@ -2,7 +2,7 @@
 {% block title %}Projects · ClosedTabs{% endblock %}
 {% block body %}
 {% include "_nav.html" %}
-<main class="page">
+<main id="main" class="page">
   <h1>Projects</h1>
   <p class="muted">Every label you gave yourself (like <code>project-delia</code>) gets a page here, most recently active first.</p>
   {% if not projects %}
@@ -11,7 +11,7 @@
   <div class="proj-grid">
   {% for p in projects %}
     <a class="proj-card" href="/projects/{{ p.label|urlencode }}">
-      <h3>{{ p.label }}</h3>
+      <h2>{{ p.label }}</h2>
       <p class="muted">{{ p.links }} link{{ "s" if p.links != 1 }} · {{ p.notes }} note{{ "s" if p.notes != 1 }}{% if p.commdata %} · {{ p.commdata }} CommData{% endif %}</p>
       {% if p.top_why %}<div class="tags">{% for w in p.top_why %}<span class="tag tag-why">{{ w }}</span>{% endfor %}</div>{% endif %}
       <p class="muted small">last added {{ p.last|ago }}</p>

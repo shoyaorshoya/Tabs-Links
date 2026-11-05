@@ -10,7 +10,7 @@ def _cell(text="", cls=""):
     return {"text": "" if text is None else str(text), "cls": cls}
 
 
-def _yes(flag: bool, yes="✓", no="—"):
+def _yes(flag: bool, yes="✓", no="none"):
     return _cell(yes if flag else no, "ok" if flag else "warn")
 
 
@@ -33,7 +33,7 @@ def build(links: list[dict]) -> dict:
     section("Overview")
     row("Type", [_cell(", ".join(t.split("/", 1)[1] for t in l["tags"] if t.startswith("type/"))) for l in sites])
     row("Topics", [_cell(", ".join(t.split("/", 1)[1] for t in l["tags"] if t.startswith("topic/"))) for l in sites])
-    row("Language", [_cell((s.get("lang") or "—") + (f" (+{', '.join(s['hreflang'])})" if s.get("hreflang") else ""))
+    row("Language", [_cell((s.get("lang") or "none") + (f" (+{', '.join(s['hreflang'])})" if s.get("hreflang") else ""))
                      for s in S])
 
     section("SEO basics")
@@ -60,7 +60,7 @@ def build(links: list[dict]) -> dict:
     row("HTTPS", [_yes(bool(s.get("https"))) for s in S])
     times = [s.get("response_ms") for s in S]
     fastest = min((t for t in times if t is not None), default=None)
-    row("Response time", [_cell(f"{t} ms" if t is not None else "—",
+    row("Response time", [_cell(f"{t} ms" if t is not None else "none",
                                 "ok" if t is not None and t == fastest else ("warn" if t and t > 1500 else ""))
                           for t in times])
     row("Words on page", [_cell(s.get("word_count", "")) for s in S])
@@ -69,14 +69,14 @@ def build(links: list[dict]) -> dict:
     for cat, label in CATEGORIES:
         vals = [[t["name"] for t in (s.get("tech") or []) if t.get("category") == cat] for s in S]
         if any(vals):
-            row(label, [_cell(", ".join(v) or "—", "" if v else "none") for v in vals])
+            row(label, [_cell(", ".join(v) or "none", "" if v else "none") for v in vals])
 
     section("Social presence")
     for net in SOCIAL_COLUMNS:
         vals = [(s.get("socials") or {}).get(net, "") for s in S]
         if any(vals):
-            row(net, [_cell("✓" if v else "—", "ok" if v else "none") | {"href": v} for v in vals])
-    row("Public contact", [_cell(" · ".join((s.get("emails") or []) + (s.get("phones") or [])) or "—") for s in S])
+            row(net, [_cell("✓" if v else "none", "ok" if v else "none") | {"href": v} for v in vals])
+    row("Public contact", [_cell(" · ".join((s.get("emails") or []) + (s.get("phones") or [])) or "none") for s in S])
 
     section("Content focus")
     row("Top keywords", [_cell(", ".join(w for w, _ in (s.get("keywords") or {}).get("words", [])[:6])) for s in S])

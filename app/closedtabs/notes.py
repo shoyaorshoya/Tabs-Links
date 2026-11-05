@@ -59,11 +59,11 @@ def render(text: str) -> str:
         m = re.match(r"^\s*#{1,6}\s+(.*)$", lines[0])
         first = lines[0].strip()
         if m:
-            out.append(f"<h4>{_inline(m.group(1).strip())}</h4>")
+            out.append(f"<h3>{_inline(m.group(1).strip())}</h3>")
             lines = lines[1:]
         elif len(lines) > 1 and len(first) <= 60 and not re.search(r"[.!?,;:]$", first) \
                 and not BULLET.match(first) and "[[" not in first:
-            out.append(f"<h4>{_inline(first)}</h4>")
+            out.append(f"<h3>{_inline(first)}</h3>")
             lines = lines[1:]
         if not lines:
             continue

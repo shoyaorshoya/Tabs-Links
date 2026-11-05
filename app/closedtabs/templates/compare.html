@@ -2,7 +2,7 @@
 {% block title %}Compare · {{ project }} · ClosedTabs{% endblock %}
 {% block body %}
 {% include "_nav.html" %}
-<main class="compare">
+<main id="main" class="compare">
   <p class="crumbs"><a href="/projects">Projects</a> /{% for t in tags[1:] %} <a href="/projects/{{ t|urlencode }}">{{ t }}</a> /{% endfor %}</p>
   <div class="compare-head">
     <h1>Compare: {{ project }}</h1>
@@ -18,15 +18,15 @@
   {% if table.n > 1 and (ins.shared_keywords or ins.shared_tools or ins.unique_tools) %}
   <section class="insights">
     {% if ins.shared_keywords %}
-    <div class="box"><h3>Shared keywords</h3><p class="muted">Words &amp; phrases several sites focus on (number of sites)</p>
+    <div class="box"><h2>Shared keywords</h2><p class="muted">Words &amp; phrases several sites focus on (number of sites)</p>
       <p class="kw">{% for k, c in ins.shared_keywords %}<span>{{ k }} <small>{{ c }}/{{ table.n }}</small></span>{% endfor %}</p></div>
     {% endif %}
     {% if ins.shared_tools %}
-    <div class="box"><h3>Common tools</h3><p class="muted">Technology used by several sites</p>
+    <div class="box"><h2>Common tools</h2><p class="muted">Technology used by several sites</p>
       <p class="kw">{% for k, c in ins.shared_tools %}<span>{{ k }} <small>{{ c }}/{{ table.n }}</small></span>{% endfor %}</p></div>
     {% endif %}
     {% if ins.unique_tools %}
-    <div class="box"><h3>Only one site uses…</h3>
+    <div class="box"><h2>Only one site uses…</h2>
       {% for name, tools in ins.unique_tools %}<p><b>{{ name }}</b>: {{ tools|join(", ") }}</p>{% endfor %}</div>
     {% endif %}
   </section>

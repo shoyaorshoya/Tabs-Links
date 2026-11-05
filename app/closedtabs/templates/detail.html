@@ -3,7 +3,7 @@
 {% block head %}{% if link.status == "pending" %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block body %}
 {% include "_nav.html" %}
-<main class="detail">
+<main id="main" class="detail">
   <p class="crumbs"><a href="/library">Library</a> /{% for t in link.tags if "/" not in t and t != "commdata" %} <a href="/projects/{{ t|urlencode }}">{{ t }}</a> /{% endfor %}</p>
   {% set is_note = link.kind == "note" %}
   <h1>{% if is_note %}<span class="kind-badge">Note</span> {% endif %}{{ link.title or link.url }}</h1>
@@ -21,28 +21,28 @@
   {% if is_note %}
     {% if edit or not (link.content or link.title) %}
     <form class="box note-form" action="/links/{{ link.id }}/edit" method="post">
-      <input name="title" value="{{ link.title }}" placeholder="Title">
-      <textarea name="text" rows="14">{{ link.content }}</textarea>
+      <input name="title" aria-label="Title" value="{{ link.title }}" placeholder="Title">
+      <textarea name="text" rows="14" aria-label="Note text">{{ link.content }}</textarea>
       <input type="hidden" name="why" value="{{ link.why|join(', ') }}">
       <input type="hidden" name="tags" value="{{ link.tags|join(', ') }}">
       <input type="hidden" name="note" value="{{ link.note }}">
       <button class="btn" type="submit">Save note</button> <a href="/links/{{ link.id }}">cancel</a>
     </form>
     {% else %}
-    <section class="box note-body">{{ link.content|render_note|safe }}
+    <section class="box note-body"><h2 class="vh">Note</h2>{{ link.content|render_note|safe }}
       <p><a class="btn btn-light btn-sm" href="/links/{{ link.id }}?edit=1">Edit note</a></p></section>
     {% endif %}
   {% endif %}
 
   {% if link.summary or (link.description and not is_note) %}
-  <section class="box"><h3>Summary</h3><p>{{ link.summary or link.description }}</p></section>
+  <section class="box"><h2>Summary</h2><p>{{ link.summary or link.description }}</p></section>
   {% endif %}
 
   {% if outgoing or backlinks %}
   <section class="box connections">
-    {% if outgoing %}<h3>Links to</h3>
+    {% if outgoing %}<h2>Links to</h2>
       <ul>{% for r in outgoing %}<li><a href="/links/{{ r.id }}">{% if r.kind == "note" %}📝 {% endif %}{{ r.title or r.url }}</a> <span class="muted">{{ r.source }}</span></li>{% endfor %}</ul>{% endif %}
-    {% if backlinks %}<h3>Linked from</h3>
+    {% if backlinks %}<h2>Linked from</h2>
       <ul>{% for r in backlinks %}<li><a href="/links/{{ r.id }}">{% if r.kind == "note" %}📝 {% endif %}{{ r.title or r.url }}</a> <span class="muted">{{ r.created_at|ago }}</span></li>{% endfor %}</ul>{% endif %}
   </section>
   {% endif %}
@@ -61,7 +61,7 @@
   {% endif %}
   {% if s and s.get("title") is not none %}
   <section class="box seo">
-    <h3>Website data <span class="tag tag-cd">CommData</span></h3>
+    <h2>Website data <span class="tag tag-cd">CommData</span></h2>
 
     {% if s.checks %}
     <ul class="checks">
@@ -70,19 +70,19 @@
     {% endif %}
 
     {% if s.tech %}
-    <h4>Marketing &amp; tech stack</h4>
+    <h3>Marketing &amp; tech stack</h3>
     <div class="tags">{% for t in s.tech %}<a class="tag" href="/library?q={{ t.name|urlencode }}" title="{{ t.category }}">{{ t.name }}</a>{% endfor %}</div>
     {% endif %}
 
     {% if s.keywords and (s.keywords.words or s.keywords.phrases) %}
-    <h4>Top keywords on the page</h4>
+    <h3>Top keywords on the page</h3>
     <p class="kw">{% for w, n in s.keywords.words %}<span>{{ w }} <small>{{ n }}</small></span>{% endfor %}</p>
     {% if s.keywords.phrases %}<p class="kw">{% for w, n in s.keywords.phrases %}<span>{{ w }} <small>{{ n }}</small></span>{% endfor %}</p>{% endif %}
     {% endif %}
 
     <table class="facts">
-      <tr><th>Title</th><td>{{ s.title or "—" }}</td></tr>
-      <tr><th>Meta description</th><td>{{ s.description or "—" }}</td></tr>
+      <tr><th>Title</th><td>{{ s.title or "not set" }}</td></tr>
+      <tr><th>Meta description</th><td>{{ s.description or "not set" }}</td></tr>
       {% if s.meta_keywords %}<tr><th>Meta keywords</th><td>{{ s.meta_keywords|join(", ") }}</td></tr>{% endif %}
       {% if s.h1 %}<tr><th>H1</th><td>{{ s.h1|join(" · ") }}</td></tr>{% endif %}
       {% if s.h2 %}<tr><th>H2</th><td>{{ s.h2|join(" · ") }}</td></tr>{% endif %}
@@ -91,7 +91,7 @@
       {% if s.twitter_card %}<tr><th>Twitter card</th><td>{{ s.twitter_card }}</td></tr>{% endif %}
       {% if s.socials %}<tr><th>Social profiles</th><td>{% for n, u in s.socials.items() %}<a href="{{ u }}" target="_blank" rel="noopener">{{ n }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</td></tr>{% endif %}
       {% if s.emails or s.phones %}<tr><th>Contact</th><td>{{ (s.emails + s.phones)|join(" · ") }}</td></tr>{% endif %}
-      <tr><th>Language</th><td>{{ s.lang or "—" }}{% if s.hreflang %} · versions: {{ s.hreflang|join(", ") }}{% endif %}</td></tr>
+      <tr><th>Language</th><td>{{ s.lang or "not set" }}{% if s.hreflang %} · versions: {{ s.hreflang|join(", ") }}{% endif %}</td></tr>
       <tr><th>Content</th><td>{{ s.word_count }} words · {{ s.images }} images · {{ s.links_internal }} internal / {{ s.links_external }} external links</td></tr>
       <tr><th>Technical</th><td>{{ "HTTPS" if s.https else "HTTP" }}{% if s.response_ms is not none %} · {{ s.response_ms }} ms{% endif %}{% if s.size_kb %} · {{ s.size_kb }} KB{% endif %}{% if s.redirects %} · {{ s.redirects }} redirect(s){% endif %}{% if s.server %} · server: {{ s.server }}{% endif %}</td></tr>
       {% if s.canonical %}<tr><th>Canonical</th><td>{{ s.canonical }}</td></tr>{% endif %}
@@ -105,13 +105,13 @@
   {% endif %}
 
   <form class="box" action="/links/{{ link.id }}/edit" method="post">
-    <h3>Why I saved it <small class="muted">(keywords, comma separated)</small></h3>
-    <input name="why" value="{{ link.why|join(', ') }}" placeholder="e.g. inspiration, pricing, onboarding">
-    <h3>Labels <small class="muted">(comma separated. Add your own, e.g. project-delia, client. The AI never removes those.)</small></h3>
-    <input name="tags" value="{{ link.tags|join(', ') }}">
+    <h2>Why I saved it <small class="muted">(keywords, comma separated)</small></h2>
+    <input name="why" aria-label="Why I saved it" value="{{ link.why|join(', ') }}" placeholder="e.g. inspiration, pricing, onboarding">
+    <h2>Labels <small class="muted">(comma separated. Add your own, e.g. project-delia, client. The AI never removes those.)</small></h2>
+    <input name="tags" aria-label="Labels" value="{{ link.tags|join(', ') }}">
     {% if not is_note %}
-    <h3>Note <small class="muted">(free text, optional; [[links]] to other items work here too)</small></h3>
-    <textarea name="note" rows="3">{{ link.note }}</textarea>
+    <h2>Note <small class="muted">(free text, optional; [[links]] to other items work here too)</small></h2>
+    <textarea name="note" rows="3" aria-label="Note">{{ link.note }}</textarea>
     {% if link.note %}<div class="note-body small">{{ link.note|render_note|safe }}</div>{% endif %}
     {% endif %}
     <button class="btn" type="submit">Save changes</button>

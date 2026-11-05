@@ -4,10 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ClosedTabs{% endblock %}</title>
+  <meta name="description" content="{% block description %}ClosedTabs: your personal library of saved links, notes and website data.{% endblock %}">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/schibsted-grotesk-400_800-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
   {% block head %}{% endblock %}
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   {% block body %}{% endblock %}
 </body>
 </html>

@@ -1,14 +1,17 @@
 {% extends "base.html" %}
+{% block title %}ClosedTabs{% endblock %}
 {% block body %}
-<main class="welcome">
+<main id="main" class="welcome">
   <h1 class="logo">Closed<span>Tabs</span></h1>
   <p class="tagline">Close the tab. Keep the link. Find it when you need it.</p>
-  <a class="btn btn-big" href="/library" autofocus>Enter</a>
-  {% if count %}<p class="muted">{{ count }} item{{ "s" if count != 1 }} in your library</p>{% endif %}
-  <div class="pillars">
-    <div><b>Capture</b>links, notes, quotes</div>
-    <div><b>Organise</b>why · projects · topics</div>
-    <div><b>Rediscover</b>review, briefs, Claude</div>
+  <div class="drawer" role="img" aria-label="Recently filed: {{ (recent or ['nothing yet'])|join(', ') }}">
+    {% for name in (recent or ["your first link", "a note", "a source"]) %}
+      <span class="wtab" style="--i: {{ loop.index0 }}" aria-hidden="true">{{ name }}</span>
+    {% endfor %}
+    <span class="drawer-front" aria-hidden="true"></span>
   </div>
+  <a class="btn btn-big" href="/library">Enter</a>
+  <p class="muted welcome-count">{% if count %}{{ count }} item{{ "s" if count != 1 }} filed{% else %}Nothing filed yet{% endif %} · press Enter</p>
 </main>
+<script>document.addEventListener("keydown", e => { if (e.key === "Enter" && document.activeElement === document.body) location.href = "/library"; });</script>
 {% endblock %}

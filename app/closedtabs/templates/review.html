@@ -2,13 +2,13 @@
 {% block title %}Weekly review · ClosedTabs{% endblock %}
 {% block body %}
 {% include "_nav.html" %}
-<main class="page">
+<main id="main" class="page">
   <h1>Weekly review</h1>
   <p class="muted">Ten minutes a week keeps the library useful: look at what came in, sort the loose ends, and meet a few older finds again.</p>
   {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
 
   <section class="box">
-    <h3>This week</h3>
+    <h2>This week</h2>
     {% if week.count %}
     <p class="stat-row"><span class="stat"><b>{{ week.count }}</b> saved</span><span class="stat"><b>{{ week.links }}</b> links</span><span class="stat"><b>{{ week.notes }}</b> notes</span>
       <a class="btn btn-light btn-sm" href="/library?days=7">See them</a></p>
@@ -22,7 +22,7 @@
   </section>
 
   <section class="box" id="todo">
-    <h3>To sort <small class="muted">{{ todo|length }}{% if todo|length == 40 %}+{% endif %} without a why or project</small></h3>
+    <h2>To sort <small class="muted">{{ todo|length }}{% if todo|length == 40 %}+{% endif %} without a why or project</small></h2>
     {% if not todo %}<p class="muted">🎉 Everything has a why or a project.</p>{% endif %}
     <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
     <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
@@ -33,8 +33,8 @@
         <span class="muted small">{{ it.source }} · {{ it.created_at|ago }} · <a href="/links/{{ it.id }}">details</a></span>
         {% if it.summary or it.description %}<p class="muted small clamp1">{{ it.summary or it.description }}</p>{% endif %}
       </div>
-      <input name="why" list="known-whys" placeholder="why?">
-      <input name="labels" list="known-labels" placeholder="project">
+      <input aria-label="why" name="why" list="known-whys" placeholder="why?">
+      <input aria-label="project" name="labels" list="known-labels" placeholder="project">
       <button class="btn btn-sm" name="action" value="save">Save</button>
       <button class="btn btn-light btn-sm" name="action" value="archive" title="Hide it from lists (not deleted)">Archive</button>
     </form>
@@ -42,7 +42,7 @@
   </section>
 
   <section class="box">
-    <h3>Worth another look</h3>
+    <h2>Worth another look</h2>
     <p class="muted small">Older finds related to what you're working on now. A new set every week.</p>
     {% if not again %}<p class="muted">Come back once you have items older than a month.</p>{% endif %}
     {% for it in again %}
