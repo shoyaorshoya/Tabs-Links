@@ -35,6 +35,7 @@
     <a href="{{ with_filters(filters, kind=(none if kind == 'link' else 'link')) }}" class="side-link sub {% if kind == 'link' %}active{% endif %}">🔗 Links <span>{{ n_links }}</span></a>
     <a href="{{ with_filters(filters, kind=(none if kind == 'note' else 'note')) }}" class="side-link sub {% if kind == 'note' %}active{% endif %}">📝 Notes <span>{{ n_notes }}</span></a>
     <a href="{{ with_filters({}, days=7) }}" class="side-link {% if days == 7 and not tag and not why and not source %}active{% endif %}">Last 7 days <span>{{ week }}</span></a>
+    {% if n_archived %}<a href="{{ with_filters({}, archived=(0 if archived else 1)) }}" class="side-link {% if archived %}active{% endif %}">🗄 Archive <span>{{ n_archived }}</span></a>{% endif %}
 
     {% set cd = (tags|selectattr(0, "equalto", "commdata")|list) %}
     {% if cd %}
@@ -133,6 +134,7 @@
           {% if source %}<a class="fchip" href="{{ with_filters(filters, source=none) }}">source: {{ source }} ×</a>{% endif %}
           {% if days %}<a class="fchip" href="{{ with_filters(filters, days=none) }}">last {{ days }} days ×</a>{% endif %}
           {% if kind %}<a class="fchip" href="{{ with_filters(filters, kind=none) }}">{{ kind }}s only ×</a>{% endif %}
+          {% if archived %}<a class="fchip" href="{{ with_filters(filters, archived=none) }}">🗄 archive ×</a>{% endif %}
           <a class="clear" href="/library">clear all</a>
         {% endif %}
         <span class="muted">{{ links|length }} link{{ "s" if links|length != 1 }}</span>
@@ -160,7 +162,8 @@
       {% if l.image %}<img class="thumb" src="{{ l.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
       <div class="card-body">
         {% if l.kind == "note" %}
-        <div class="meta"><a class="src" href="{{ with_filters(filters, kind='note') }}">📝 Note</a> · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">open</a></div>
+        <div class="meta"><a class="src" href="{{ with_filters(filters, kind='note') }}">📝 Note</a> · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">open</a>
+          <form class="inline" action="/links/{{ l.id }}/archive" method="post"><input type="hidden" name="on" value="{{ 0 if l.archived else 1 }}"><input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"><button class="linklike muted-btn">{{ "restore" if l.archived else "archive" }}</button></form></div>
         <a class="card-title" href="/links/{{ l.id }}">{{ l.title }}</a>
         {% if l.content %}<p class="summary">{{ l.content[:300] }}</p>{% endif %}
         {% else %}
@@ -168,6 +171,7 @@
           <a class="src" href="{{ with_filters(filters, source=l.source) }}" title="All links from {{ l.source }}">{{ l.source or l.site }}</a>
           {% if l.source_kind and l.source_kind != "website" %}<span class="kind">{{ l.source_kind }}</span>{% endif %}
           · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">details</a>
+          <form class="inline" action="/links/{{ l.id }}/archive" method="post"><input type="hidden" name="on" value="{{ 0 if l.archived else 1 }}"><input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"><button class="linklike muted-btn" title="{{ 'Bring back' if l.archived else 'Hide from lists (not deleted)' }}">{{ "restore" if l.archived else "archive" }}</button></form>
           {% for t in l.tags if t.startswith("type/") %}<span class="type">{{ label_name(t) }}</span>{% endfor %}
         </div>
         <a class="card-title" href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title or l.url }}</a>

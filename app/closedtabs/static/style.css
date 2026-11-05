@@ -245,3 +245,19 @@ ul.plain li { padding: 4px 0; border-top: 1px solid var(--line); overflow-wrap: 
 ul.plain li:first-child { border-top: 0; }
 .kw a:hover { text-decoration: none; }
 @media (max-width: 760px) { .proj-cols { grid-template-columns: 1fr; } .page { padding: 16px; } }
+/* ── review & archive ───────────────────────────────────────── */
+form.inline { display: inline; }
+.muted-btn { color: var(--muted); font-size: 12px; cursor: pointer; padding: 0; width: auto; }
+.muted-btn:hover { color: var(--accent); text-decoration: underline; }
+.stat-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.stat b { font-size: 22px; margin-right: 4px; }
+.week-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 20px; }
+.sort-row, .again-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px 140px auto auto; gap: 8px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--line); }
+.again-row { grid-template-columns: minmax(0, 1fr) auto; }
+.sort-row input { padding: 6px 8px; font-size: 13px; }
+.sort-what { min-width: 0; }
+.sort-what > a { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.sort-what p { margin: 2px 0 0; }
+.clamp1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) { .sort-row { grid-template-columns: 1fr 1fr; } .sort-what { grid-column: 1 / -1; } }

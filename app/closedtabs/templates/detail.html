@@ -16,6 +16,7 @@
     · <button type="button" class="linklike ref" data-ref="[[{{ link.title }}]]" title="Copy a reference to paste into a note">copy [[link]]</button>
   </p>
 
+  {% if link.archived %}<p class="flash">🗄 This item is archived: hidden from lists, still searchable (and Claude can find it).</p>{% endif %}
   {% if link.status == "pending" %}<p class="muted">⏳ {{ "Labelling the note…" if is_note else "Reading the page…" }}</p>{% endif %}
   {% if link.error %}<p class="warn">{{ link.error }}</p>{% endif %}
 
@@ -120,6 +121,7 @@
 
   <div class="actions">
     <form action="/links/{{ link.id }}/retry" method="post"><button class="btn btn-light" type="submit">{% if is_note %}Re-label{% elif ai %}Re-read page &amp; re-label{% else %}Re-read page{% endif %}</button></form>
+    <form action="/links/{{ link.id }}/archive" method="post"><input type="hidden" name="on" value="{{ 0 if link.archived else 1 }}"><button class="btn btn-light" type="submit">{{ "Restore from archive" if link.archived else "Archive" }}</button></form>
     <form action="/links/{{ link.id }}/delete" method="post" onsubmit="return confirm('Delete this {{ 'note' if is_note else 'link' }}?')"><button class="btn btn-danger" type="submit">Delete</button></form>
   </div>
 

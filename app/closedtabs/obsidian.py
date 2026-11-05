@@ -174,6 +174,9 @@ def _item_file(it: dict, names: Names, text: str, sync: dict) -> str:
               "saved": time.strftime("%Y-%m-%d", time.localtime(it["created_at"]))}
     if it["kind"] == "link":
         props["commdata"] = taxonomy.COMMDATA in it["tags"]
+    if it.get("archived"):
+        props["archived"] = True
+        tags.append("archived")
     props |= {"tags": list(dict.fromkeys(tags)), "cts_sync": sync}
 
     lines = [f"# {it['title'] or it['url']}", ""]
@@ -324,6 +327,8 @@ def _sync(root: Path) -> dict:
     whys: dict[str, list] = {}
     sources: dict[str, list] = {}
     for it in items:
+        if it.get("archived"):
+            continue
         for t in it["tags"]:
             if "/" not in t and t != taxonomy.COMMDATA:
                 projects.setdefault(t, []).append(it)

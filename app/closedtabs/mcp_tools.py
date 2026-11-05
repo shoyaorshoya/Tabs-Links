@@ -31,6 +31,7 @@ def _brief(link: dict) -> dict:
         "title": link["title"], "source": link["source"],
         "platform": link["source_kind"], "why_saved": link["why"],
         "summary": link["summary"] or link["description"], "tags": link["tags"], "note": link["note"],
+        "archived": bool(link.get("archived")),
     }
 
 
@@ -46,7 +47,8 @@ def search_links(query: str = "", tag: str = "", why: str = "", source: str = ""
         source: optional exact source name, e.g. "mero.ro", "sethblack/python-seo-analyzer", a YouTube channel.
         limit: max results (1-50).
     """
-    return [_brief(l) for l in db.search(query, tag, why=why, source=source, limit=max(1, min(limit, 50)))]
+    return [_brief(l) for l in db.search(query, tag, why=why, source=source, archived=None,
+                                         limit=max(1, min(limit, 50)))]
 
 
 @mcp.tool()

@@ -75,6 +75,13 @@ For longer notes, click **📝 Write a longer note**. Inside a note, write `[[ti
 (top menu): its notes, links grouped by *why*, a competitor snapshot, topics and sources, and a
 **Write a brief with AI** button. The brief is saved as a note that links back to its sources.
 
+**Weekly review (10 minutes):** open **Review** (top menu). You'll see what you saved this week,
+the items that still have no *why* or project (sort them right there, or **Archive** them), and
+5 older finds related to what you're working on now.
+
+**Archive:** hides an item from lists without deleting it (sidebar → 🗄 Archive to see them,
+**restore** to bring one back). Claude can still find archived items.
+
 **Compare competitors:** open a CommData project (sidebar → CommData → project) and click **Compare**.
 You get the websites side by side, plus shared keywords, common tools, and what only one site uses.
 

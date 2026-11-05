@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Weekly review · ClosedTabs{% endblock %}
+{% block body %}
+{% include "_nav.html" %}
+<main class="page">
+  <h1>Weekly review</h1>
+  <p class="muted">Ten minutes a week keeps the library useful: look at what came in, sort the loose ends, and meet a few older finds again.</p>
+  {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
+
+  <section class="box">
+    <h3>This week</h3>
+    {% if week.count %}
+    <p class="stat-row"><span class="stat"><b>{{ week.count }}</b> saved</span><span class="stat"><b>{{ week.links }}</b> links</span><span class="stat"><b>{{ week.notes }}</b> notes</span>
+      <a class="btn btn-light btn-sm" href="/library?days=7">See them</a></p>
+    <div class="week-grid">
+      {% if week.why %}<div><p class="muted small">Why you saved things</p><p class="kw">{% for w, c in week.why %}<a href="/library?days=7&amp;why={{ w|urlencode }}"><span>{{ w }} <small>{{ c }}</small></span></a>{% endfor %}</p></div>{% endif %}
+      {% if week.topics %}<div><p class="muted small">Topics</p><p class="kw">{% for t, c in week.topics %}<a href="/library?days=7&amp;tag={{ ('topic/' ~ t)|urlencode }}"><span>{{ t }} <small>{{ c }}</small></span></a>{% endfor %}</p></div>{% endif %}
+      {% if week.projects %}<div><p class="muted small">Projects</p><p class="kw">{% for p, c in week.projects %}<a href="/projects/{{ p|urlencode }}"><span>{{ p }} <small>{{ c }}</small></span></a>{% endfor %}</p></div>{% endif %}
+      {% if week.sources %}<div><p class="muted small">Sources</p><p class="kw">{% for s, c in week.sources %}<a href="/library?days=7&amp;source={{ s|urlencode }}"><span>{{ s }} <small>{{ c }}</small></span></a>{% endfor %}</p></div>{% endif %}
+    </div>
+    {% else %}<p class="muted">Nothing saved in the last 7 days.</p>{% endif %}
+  </section>
+
+  <section class="box" id="todo">
+    <h3>To sort <small class="muted">{{ todo|length }}{% if todo|length == 40 %}+{% endif %} without a why or project</small></h3>
+    {% if not todo %}<p class="muted">🎉 Everything has a why or a project.</p>{% endif %}
+    <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
+    <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
+    {% for it in todo %}
+    <form class="sort-row" action="/review/sort/{{ it.id }}" method="post">
+      <div class="sort-what">
+        <a href="{{ '/links/' ~ it.id if it.kind == 'note' else it.url }}" {% if it.kind != 'note' %}target="_blank" rel="noopener"{% endif %}>{% if it.kind == "note" %}📝 {% endif %}{{ it.title or it.url }}</a>
+        <span class="muted small">{{ it.source }} · {{ it.created_at|ago }} · <a href="/links/{{ it.id }}">details</a></span>
+        {% if it.summary or it.description %}<p class="muted small clamp1">{{ it.summary or it.description }}</p>{% endif %}
+      </div>
+      <input name="why" list="known-whys" placeholder="why?">
+      <input name="labels" list="known-labels" placeholder="project">
+      <button class="btn btn-sm" name="action" value="save">Save</button>
+      <button class="btn btn-light btn-sm" name="action" value="archive" title="Hide it from lists (not deleted)">Archive</button>
+    </form>
+    {% endfor %}
+  </section>
+
+  <section class="box">
+    <h3>Worth another look</h3>
+    <p class="muted small">Older finds related to what you're working on now. A new set every week.</p>
+    {% if not again %}<p class="muted">Come back once you have items older than a month.</p>{% endif %}
+    {% for it in again %}
+    <div class="again-row">
+      <div class="sort-what">
+        <a href="/links/{{ it.id }}">{% if it.kind == "note" %}📝 {% endif %}{{ it.title or it.url }}</a>
+        <span class="muted small">{{ it.source }} · saved {{ it.created_at|ago }}{% if it.because %} · because you're on: {{ it.because|join(", ") }}{% endif %}</span>
+        {% if it.summary or it.description %}<p class="muted small clamp1">{{ it.summary or it.description }}</p>{% endif %}
+      </div>
+      <form action="/links/{{ it.id }}/archive" method="post"><input type="hidden" name="back" value="/review">
+        <button class="btn btn-light btn-sm" title="Hide it from lists (not deleted)">Archive</button></form>
+    </div>
+    {% endfor %}
+  </section>
+</main>
+{% endblock %}

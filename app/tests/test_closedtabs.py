@@ -771,3 +771,57 @@ def test_project_pages_and_brief(monkeypatch):
             break
         _t.sleep(0.05)
     assert "out of credits" in c.get("/projects/project-delia").text
+
+
+def test_archive_and_weekly_review(monkeypatch):
+    import time as _t
+    from fastapi.testclient import TestClient
+    from closedtabs import review, web
+
+    monkeypatch.setattr(enrich.worker, "submit", lambda i: None)
+    c = TestClient(web.app)
+    now = _t.time()
+
+    def item(url, age_days, why=(), tags=()):
+        i, _ = db.add(url, why=list(why))
+        db.update(i, title=url.split("//")[1], tags=list(tags), status="done")
+        db.conn().execute("UPDATE links SET created_at=? WHERE id=?", (now - age_days * 86400, i))
+        db.conn().commit()
+        return i
+
+    fresh = item("https://fresh.example", 1, why=["inspiration"], tags=["topic/onboarding", "project-x"])
+    loose = item("https://loose.example", 2)                                         # no why, no project
+    old_rel = item("https://old-related.example", 60, tags=["topic/onboarding"])      # shares a current topic
+    old_other = item("https://old-other.example", 90, why=["later"], tags=["topic/gardening"])
+
+    wk = review.this_week()
+    assert wk["count"] == 2 and ("inspiration", 1) in wk["why"] and ("project-x", 1) in wk["projects"]
+    assert [i["id"] for i in review.unsorted()] == [loose, old_rel]
+    again = review.rediscover(n=2, now=now)
+    assert again[0]["id"] == old_rel and again[0]["because"] == ["onboarding"]
+    assert {i["id"] for i in again} == {old_rel, old_other}
+
+    page = c.get("/review").text
+    assert "This week" in page and "loose.example" in page and "because you're on: onboarding" in page
+
+    # sort an item from the review page
+    c.post(f"/review/sort/{loose}", data={"why": "competitor", "labels": "project-x", "action": "save"})
+    assert db.get(loose)["why"] == ["competitor"] and "project-x" in db.get(loose)["tags"]
+    assert loose not in [i["id"] for i in review.unsorted()]
+
+    # archive: hidden from lists and counts, visible in the archive view, still found by Claude
+    c.post(f"/review/sort/{old_other}", data={"action": "archive"})
+    assert db.get(old_other)["archived"] == 1
+    assert old_other not in [i["id"] for i in db.search("")]
+    assert [i["id"] for i in db.search("", archived=True)] == [old_other]
+    assert db.count() == 3 and db.count_archived() == 1 and db.count_all() == 4
+    assert "later" not in dict(db.why_counts())
+    assert "old-other.example" in c.get("/library?archived=1").text
+    assert "old-other.example" not in c.get("/library").text
+    from closedtabs.mcp_tools import search_links
+    assert any(r["id"] == old_other and r["archived"] for r in search_links(query="gardening"))
+    assert c.get("/health").json()["links"] == 4
+
+    # restore
+    c.post(f"/links/{old_other}/archive", data={"on": "0", "back": "/library"})
+    assert db.get(old_other)["archived"] == 0 and db.count() == 4

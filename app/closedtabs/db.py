@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS links (
   why         TEXT NOT NULL DEFAULT '[]',     -- "why am I saving this" keywords, JSON list
   source      TEXT NOT NULL DEFAULT '',       -- readable source: mero.ro, user/repo, channel…
   source_kind TEXT NOT NULL DEFAULT '',       -- website | GitHub | YouTube | LinkedIn | …
-  kind        TEXT NOT NULL DEFAULT 'link'    -- link | note (a note has no web address; url = note:<id>)
+  kind        TEXT NOT NULL DEFAULT 'link',   -- link | note (a note has no web address; url = note:<id>)
+  archived    INTEGER NOT NULL DEFAULT 0      -- 1 = archived: hidden from lists, still searchable by Claude
 );
 """
 
@@ -45,7 +46,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
 """
 
 FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo", "want_commdata",
-          "why", "source", "source_kind", "kind")
+          "why", "source", "source_kind", "kind", "archived")
 FTS_COLUMNS = {"seo", "why", "source"}
 
 
@@ -74,6 +75,8 @@ def _migrate(c: sqlite3.Connection) -> None:
                       (json.dumps(why_keywords(r[2]), ensure_ascii=False), name, kind, r[0]))
     if "kind" not in cols:
         c.execute("ALTER TABLE links ADD COLUMN kind TEXT NOT NULL DEFAULT 'link'")
+    if "archived" not in cols:
+        c.execute("ALTER TABLE links ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
     fts_cols = {r[1] for r in c.execute("PRAGMA table_info(links_fts)")}
     stale = bool(fts_cols) and not FTS_COLUMNS <= fts_cols
     if stale:
@@ -264,7 +267,7 @@ SORTS = {"new": "l.created_at DESC", "old": "l.created_at ASC", "source": "l.sou
 
 def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int = 0,
            why: str | list[str] = "", source: str = "", since_days: int | None = None,
-           sort: str = "new", kind: str = "") -> list[dict]:
+           sort: str = "new", kind: str = "", archived: bool | None = False) -> list[dict]:
     """Filter by words (q), labels (tag), why-keywords, source and age. All filters combine (AND).
     Sorted newest first by default; with q and sort='new', best match first."""
     sql, args = "SELECT l.* FROM links l", []
@@ -288,6 +291,9 @@ def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int
     if kind:
         where.append("l.kind = ?")
         args.append(kind)
+    if archived is not None:  # False: active items only (default) · True: archive only · None: everything
+        where.append("l.archived = ?")
+        args.append(1 if archived else 0)
     if since_days:
         where.append("l.created_at >= ?")
         args.append(time.time() - since_days * 86400)
@@ -304,7 +310,7 @@ def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int
 def tag_counts() -> list[tuple[str, int]]:
     with _lock:
         c = Counter()
-        for r in conn().execute("SELECT tags FROM links"):
+        for r in conn().execute("SELECT tags FROM links WHERE archived = 0"):
             c.update(json.loads(r["tags"]))
         def group(t):
             return {"type": 0, "topic": 1}.get(t.split("/")[0], 3) if "/" in t else 2
@@ -314,7 +320,7 @@ def tag_counts() -> list[tuple[str, int]]:
 def why_counts() -> list[tuple[str, int]]:
     with _lock:
         c = Counter()
-        for r in conn().execute("SELECT why FROM links"):
+        for r in conn().execute("SELECT why FROM links WHERE archived = 0"):
             c.update(json.loads(r["why"] or "[]"))
         return sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))
 
@@ -323,19 +329,24 @@ def source_counts() -> list[tuple[str, str, int]]:
     """(source, kind, count), most links first."""
     with _lock:
         rows = conn().execute(
-            "SELECT source, MAX(source_kind) AS kind, COUNT(*) AS n FROM links WHERE source != '' AND kind = 'link' "
+            "SELECT source, MAX(source_kind) AS kind, COUNT(*) AS n FROM links WHERE source != '' AND kind = 'link' AND archived = 0 "
             "GROUP BY source ORDER BY n DESC, source COLLATE NOCASE").fetchall()
         return [(r["source"], r["kind"], r["n"]) for r in rows]
 
 
 def count_kind(kind: str) -> int:
     with _lock:
-        return conn().execute("SELECT COUNT(*) FROM links WHERE kind=?", (kind,)).fetchone()[0]
+        return conn().execute("SELECT COUNT(*) FROM links WHERE kind=? AND archived = 0", (kind,)).fetchone()[0]
+
+
+def count_archived() -> int:
+    with _lock:
+        return conn().execute("SELECT COUNT(*) FROM links WHERE archived = 1").fetchone()[0]
 
 
 def count_since(days: int) -> int:
     with _lock:
-        return conn().execute("SELECT COUNT(*) FROM links WHERE created_at >= ?",
+        return conn().execute("SELECT COUNT(*) FROM links WHERE archived = 0 AND created_at >= ?",
                               (time.time() - days * 86400,)).fetchone()[0]
 
 
@@ -363,6 +374,11 @@ def mark_all_pending() -> list[int]:
 
 
 def count() -> int:
+    with _lock:
+        return conn().execute("SELECT COUNT(*) FROM links WHERE archived = 0").fetchone()[0]
+
+
+def count_all() -> int:
     with _lock:
         return conn().execute("SELECT COUNT(*) FROM links").fetchone()[0]
 

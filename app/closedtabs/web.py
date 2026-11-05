@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import commdata_csv, compare, db, enrich, notes, obsidian, projects, providers, taxonomy
+from . import commdata_csv, compare, db, enrich, notes, obsidian, projects, providers, review, taxonomy
 from .mcp_tools import mcp
 from .urls import parse_bookmarks_html, parse_text
 
@@ -84,7 +84,7 @@ def _with(filters: dict, **changes) -> str:
 
 templates.env.globals["with_filters"] = _with
 templates.env.filters["render_note"] = notes.render
-templates.env.globals["nav_extra"] = [("/projects", "Projects")]
+templates.env.globals["nav_extra"] = [("/projects", "Projects"), ("/review", "Review")]
 templates.env.tests["search"] = lambda value, pattern: re.search(pattern, str(value)) is not None
 
 
@@ -134,16 +134,19 @@ def welcome(request: Request):
 
 @app.get("/library", response_class=HTMLResponse)
 def library(request: Request, q: str = "", tag: list[str] = Query([]), why: list[str] = Query([]),
-            source: str = "", days: int = 0, sort: str = "new", kind: str = "", msg: str = ""):
+            source: str = "", days: int = 0, sort: str = "new", kind: str = "", archived: int = 0, msg: str = ""):
     tag = [t for t in tag if t]
     why = [w for w in why if w]
     kind = kind if kind in ("link", "note") else ""
-    links = db.search(q, tag, why=why, source=source, since_days=days or None, sort=sort, kind=kind, limit=500)
-    filters = {"q": q, "tag": tag, "why": why, "source": source, "days": days, "kind": kind, "sort": sort}
+    links = db.search(q, tag, why=why, source=source, since_days=days or None, sort=sort, kind=kind,
+                      archived=bool(archived), limit=500)
+    filters = {"q": q, "tag": tag, "why": why, "source": source, "days": days, "kind": kind,
+               "archived": archived, "sort": sort}
     return templates.TemplateResponse(request, "library.html", {
         "links": links, "q": q, "tag": tag, "why": why, "source": source, "days": days, "sort": sort,
         "kind": kind, "n_notes": db.count_kind("note"), "n_links": db.count_kind("link"),
-        "filters": filters, "filtered": bool(q or tag or why or source or days or kind),
+        "archived": archived, "n_archived": db.count_archived(),
+        "filters": filters, "filtered": bool(q or tag or why or source or days or kind or archived),
         "msg": msg, "tags": db.tag_counts(), "whys": db.why_counts(), "sources": db.source_counts(),
         "week": db.count_since(7), "obsidian": obsidian.status | {"enabled": obsidian.enabled()},
         "projects": db.commdata_projects(), "commdata_view": taxonomy.COMMDATA in tag,
@@ -360,6 +363,33 @@ def relabel_all():
     return _back(msg=f"Re-labelling {len(ids)} links. This can take a while; the page updates by itself.")
 
 
+@app.post("/links/{link_id}/archive")
+def archive(request: Request, link_id: int, on: str = Form("1"), back: str = Form("")):
+    db.update(link_id, archived=1 if on == "1" else 0)
+    target = back if back.startswith("/") else f"/links/{link_id}"
+    return RedirectResponse(target, status_code=303)
+
+
+@app.get("/review", response_class=HTMLResponse)
+def review_page(request: Request, msg: str = ""):
+    return templates.TemplateResponse(request, "review.html", {
+        "week": review.this_week(), "todo": review.unsorted(), "again": review.rediscover(), "msg": msg,
+        "whys": db.why_counts(), "tags": db.tag_counts()})
+
+
+@app.post("/review/sort/{link_id}")
+def review_sort(link_id: int, why: str = Form(""), labels: str = Form(""), action: str = Form("save")):
+    link = db.get(link_id)
+    if link:
+        if action == "archive":
+            db.update(link_id, archived=1)
+        else:
+            new_why = link["why"] + [w for w in taxonomy.why_keywords(why) if w not in link["why"]]
+            own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
+            db.update(link_id, why=new_why, tags=sorted(set(link["tags"]) | set(own)))
+    return RedirectResponse("/review#todo", status_code=303)
+
+
 @app.post("/links/{link_id}/delete")
 def remove(link_id: int):
     db.delete(link_id)
@@ -384,7 +414,8 @@ def api_links(q: str = "", tag: str = "", limit: int = 50):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "links": db.count(), "ai": enrich.ai_enabled(), **providers.describe(),
+    return {"ok": True, "links": db.count_all(), "active": db.count(), "archived": db.count_archived(),
+            "ai": enrich.ai_enabled(), **providers.describe(),
             "obsidian": {"enabled": obsidian.enabled(), "folder": str(obsidian.vault_dir() or ""),
                          "last_sync": obsidian.status["last_sync"], "error": obsidian.status["error"]}}
 
