@@ -156,7 +156,7 @@ and allow access if macOS asks. The sidebar shows a clear message if writing is 
 
 ## Part 4: Connect Claude
 
-See [`claude/README.md`](claude/README.md). It's 3 small steps for the Claude desktop app.
+Double-click **Connect-Claude.command** (Mac). Details and manual steps: [`claude/README.md`](claude/README.md).
 
 ---
 

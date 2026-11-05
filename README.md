@@ -33,6 +33,7 @@ description, and makes it searchable, for you and for Claude.
 | `start.sh` / `start.ps1` | One-command start with Docker (Mac/Linux / Windows) |
 | `start-local.sh` | One-command start without Docker (Python 3.10+) |
 | `ClosedTabs.command` | Mac: double-click to start / open |
+| `Connect-Claude.command` | Mac: connect the Claude desktop app (and Claude Code) to your library |
 | `Connect-Obsidian.command` | Mac: find your Obsidian vault, connect it and run the first sync |
 | `Autostart-ON.command` / `Autostart-OFF.command` | Mac: start automatically at login (background) / switch off |
 | `app/closedtabs/` | The app (Python, FastAPI, SQLite) |

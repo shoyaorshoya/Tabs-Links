@@ -6,7 +6,14 @@ It gives Claude four tools: **search_links**, **get_link** (reads the saved page
 
 ClosedTabs must be running (Docker Desktop open) whenever Claude uses it.
 
-## Claude desktop app (Mac / Windows)
+## Claude desktop app (Mac): one double-click
+
+Double-click **Connect-Claude.command** in the ClosedTabs folder. It checks Node.js (and opens the
+download page if it's missing), adds the `closedtabs` connector to Claude's config (your other
+settings stay, and a backup is kept), prepares the bridge, connects Claude Code too if you have it,
+and restarts Claude.
+
+## Claude desktop app by hand (Mac / Windows)
 
 1. Install **Node.js** (the LTS version) from https://nodejs.org. Claude uses it to reach the connector.
 2. In the Claude app, open **Settings → Developer → Edit Config**. This opens `claude_desktop_config.json`.
