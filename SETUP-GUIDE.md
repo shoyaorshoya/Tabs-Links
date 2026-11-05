@@ -48,6 +48,10 @@ and opens the browser. If it's already running, it only opens the browser.
 
 ## Part 2: Add links
 
+**Fastest: the "Save to ClosedTabs" button.** In ClosedTabs open **Tools** (top right) and drag the
+**＋ Save to ClosedTabs** button to your browser's bookmarks bar. On any page, click it, type *why*
+(and a project), press **Enter**. Selected text on the page is saved as a quote.
+
 **One by one:** paste a link in the top box and press **Enter** (or click **Save**).
 The *"Why?"* box takes **keywords, separated by commas**, e.g. `inspiration, pricing, competitor`.
 They're listed in the sidebar under **Why**, so you can later pull up everything you saved for the same reason.

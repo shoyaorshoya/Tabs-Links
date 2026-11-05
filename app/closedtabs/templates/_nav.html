@@ -1,0 +1,10 @@
+<header class="topbar">
+  <a class="logo small" href="/">Closed<span>Tabs</span></a>
+  <nav class="mainnav">
+    {% set here = request.url.path %}
+    <a href="/library" {% if here.startswith('/library') or here.startswith('/links') %}class="on"{% endif %}>Library</a>
+    {% for path, label in nav_extra|default([]) %}<a href="{{ path }}" {% if here.startswith(path) %}class="on"{% endif %}>{{ label }}</a>{% endfor %}
+    <a href="/tools" {% if here.startswith('/tools') %}class="on"{% endif %}>Tools</a>
+  </nav>
+  {% block search %}{% endblock %}
+</header>

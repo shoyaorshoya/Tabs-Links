@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Save to ClosedTabs{% endblock %}
+{% block body %}
+<main class="popup">
+  <p class="logo small">Closed<span>Tabs</span></p>
+  {% if saved %}
+    <div class="saved-ok">
+      <p class="big">✓ {{ "Saved" if saved.new else "Updated" }}</p>
+      <p class="muted">{{ title or url }}</p>
+      <p><a href="/links/{{ saved.id }}" target="_blank" rel="noopener">Open in ClosedTabs</a></p>
+    </div>
+    <script>setTimeout(() => window.close(), 1400);</script>
+  {% elif not url %}
+    <p class="warn">This page has no web address that can be saved.</p>
+  {% else %}
+    <form class="popup-form" action="/save" method="post">
+      <input type="hidden" name="url" value="{{ url }}">
+      <label>Title<input name="title" value="{{ existing.title if existing else title }}"></label>
+      <p class="muted small-url">{{ url }}</p>
+      {% if existing %}<p class="flash">Already in your library ({{ existing.created_at|ago }}). Anything you add below is merged in.</p>{% endif %}
+      <label>Why? <small class="muted">keywords, comma separated</small>
+        <input name="why" list="known-whys" autofocus placeholder="e.g. inspiration, competitor"
+               value="{{ existing.why|join(', ') if existing else '' }}"></label>
+      <label>Project / my labels
+        <input name="labels" list="known-labels" placeholder="e.g. project-delia"></label>
+      {% if sel %}<label>Selected text <small class="muted">(saved as a quote in the note)</small>
+        <textarea name="note" rows="4">{{ sel }}</textarea></label>{% endif %}
+      <label class="check"><input type="checkbox" name="commdata" value="1" {% if existing and existing.want_commdata %}checked{% endif %}>
+        <span>Collect website data (<b>CommData</b>)</span></label>
+      <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
+      <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
+      <button class="btn" type="submit">Save</button>
+      <p class="muted hint-keys">Enter = save · Esc = close</p>
+    </form>
+    <script>document.addEventListener("keydown", e => { if (e.key === "Escape") window.close(); });</script>
+  {% endif %}
+</main>
+{% endblock %}

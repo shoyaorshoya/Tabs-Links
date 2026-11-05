@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Tools · ClosedTabs{% endblock %}
+{% block body %}
+{% include "_nav.html" %}
+<main class="detail">
+  <h1>Tools</h1>
+
+  <section class="box">
+    <h3>Save from any page in one click</h3>
+    <p>Drag this button to your browser's <b>bookmarks bar</b>:</p>
+    <p class="bm-wrap"><a class="bookmarklet" href="{{ bookmarklet }}" onclick="event.preventDefault(); alert('Drag me to the bookmarks bar, don\'t click me here 🙂');">＋ Save to ClosedTabs</a></p>
+    <ol class="steps">
+      <li>No bookmarks bar? Press <b>Cmd + Shift + B</b> (Chrome) to show it.</li>
+      <li>On any page you want to keep, click <b>＋ Save to ClosedTabs</b>. A small window opens.</li>
+      <li>Type why you save it (and a project, if any), then press <b>Enter</b>. The window closes by itself.</li>
+      <li>Tip: select text on the page first. It's saved as a quote with the link.</li>
+    </ol>
+    <p class="muted">The button only works while ClosedTabs is running on this computer. If the browser blocks the small window, allow pop-ups for the sites you save from (or for all sites).</p>
+  </section>
+
+  <section class="box">
+    <h3>Claude</h3>
+    <p>Let Claude search, read and add to your library.</p>
+    <ul class="steps">
+      <li><b>Claude desktop app (Mac):</b> double-click <code>Connect-Claude.command</code> in the ClosedTabs folder, then quit and reopen Claude.</li>
+      <li><b>Claude Code:</b> <code>claude mcp add --transport http closedtabs http://localhost:3000/mcp</code></li>
+    </ul>
+    <p class="muted">Then ask, for example: <i>“What did I save about onboarding? Give me the 5 best with links.”</i></p>
+  </section>
+
+  <section class="box">
+    <h3>Status</h3>
+    <table class="facts">
+      <tr><th>AI labels</th><td>{% if ai.provider %}{{ ai.provider }} · {{ ai.model }}{% else %}off{% endif %}</td></tr>
+      <tr><th>Obsidian</th><td>{{ "connected" if obsidian else "not connected (Connect-Obsidian.command)" }}</td></tr>
+      <tr><th>Claude connector</th><td><code>http://localhost:3000/mcp</code></td></tr>
+    </table>
+  </section>
+</main>
+{% endblock %}

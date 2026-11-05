@@ -7,7 +7,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -33,6 +33,19 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="ClosedTabs", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+
+@app.middleware("http")
+async def same_site_posts_only(request: Request, call_next):
+    """Browsers send an Origin header with form posts. Refuse posts coming from other websites,
+    so no web page can add, change or delete things in your library behind your back.
+    (Claude's connector and scripts send no Origin header and are unaffected.)"""
+    origin = request.headers.get("origin")
+    if request.method == "POST" and origin and origin != "null":
+        host = request.headers.get("host", "")
+        if urlsplit(origin).netloc not in {host, "localhost:3000", "127.0.0.1:3000"}:
+            return Response("Blocked: this request came from another website.", status_code=403)
+    return await call_next(request)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 
@@ -150,6 +163,56 @@ def add(text: str = Form(""), why: str = Form(""), note: str = Form(""), labels:
         return _back(msg="Saved as a note (there was no web address in it).")
     added, dup = _save_many(items, keywords, own, commdata=bool(commdata))
     return _back(msg=_msg(added, dup))
+
+
+BOOKMARKLET = (
+    "javascript:(()=>{const s=String(getSelection()).slice(0,3000);"
+    "window.open('http://localhost:3000/save?url='+encodeURIComponent(location.href)"
+    "+'&title='+encodeURIComponent(document.title)+'&sel='+encodeURIComponent(s),"
+    "'closedtabs','width=520,height=640')})()"
+)
+
+
+@app.get("/save", response_class=HTMLResponse)
+def save_popup(request: Request, url: str = "", title: str = "", sel: str = ""):
+    """The small window the 'Save to ClosedTabs' bookmark opens."""
+    from .urls import clean_url
+
+    url = clean_url(url) if url.startswith(("http://", "https://")) else ""
+    existing = None
+    if url:
+        with db._lock:
+            r = db.conn().execute("SELECT id FROM links WHERE url=?", (url,)).fetchone()
+        existing = db.get(r["id"]) if r else None
+    return templates.TemplateResponse(request, "save_popup.html", {
+        "url": url, "title": title, "sel": sel.strip(), "existing": existing,
+        "whys": db.why_counts(), "tags": db.tag_counts(), "saved": None})
+
+
+@app.post("/save", response_class=HTMLResponse)
+def save_from_popup(request: Request, url: str = Form(""), title: str = Form(""), why: str = Form(""),
+                    labels: str = Form(""), commdata: str = Form(""), note: str = Form("")):
+    from .urls import clean_url
+
+    if not url.startswith(("http://", "https://")):
+        return HTMLResponse("This page can't be saved (it has no web address).", status_code=400)
+    url = clean_url(url)
+    own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
+    added, _ = _save_many([(url, title.strip())], taxonomy.why_keywords(why), own, commdata=bool(commdata))
+    with db._lock:
+        link_id = db.conn().execute("SELECT id FROM links WHERE url=?", (url,)).fetchone()["id"]
+    if note.strip():
+        old = db.get(link_id)["note"]
+        quote = "> " + note.strip().replace("\n", "\n> ")
+        db.update(link_id, note=(old + "\n\n" + quote).strip() if quote not in old else old)
+    return templates.TemplateResponse(request, "save_popup.html", {
+        "saved": {"id": link_id, "new": bool(added)}, "url": url, "title": title})
+
+
+@app.get("/tools", response_class=HTMLResponse)
+def tools(request: Request):
+    return templates.TemplateResponse(request, "tools.html", {
+        "bookmarklet": BOOKMARKLET, "obsidian": obsidian.enabled(), "ai": providers.describe()})
 
 
 @app.get("/notes/new", response_class=HTMLResponse)

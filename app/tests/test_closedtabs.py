@@ -675,3 +675,35 @@ def test_obsidian_off_by_default(monkeypatch):
     from closedtabs import obsidian
     monkeypatch.delenv("OBSIDIAN_VAULT", raising=False)
     assert not obsidian.enabled() and obsidian.sync()["enabled"] is False
+
+
+def test_bookmarklet_popup_and_cross_site_guard(monkeypatch):
+    from fastapi.testclient import TestClient
+    from closedtabs import web
+
+    monkeypatch.setattr(enrich.worker, "submit", lambda i: None)
+    c = TestClient(web.app)
+    r = c.get("/tools")
+    assert "Save to ClosedTabs" in r.text and "javascript:" in r.text
+    r = c.get("/save", params={"url": "https://www.mero.ro/j?utm_source=x", "title": "Judith", "sel": "Best PMU in town"})
+    assert 'value="https://www.mero.ro/j"' in r.text and "Best PMU in town" in r.text and "Already" not in r.text
+
+    r = c.post("/save", data={"url": "https://www.mero.ro/j", "title": "Judith", "why": "competitor",
+                              "labels": "project-delia", "commdata": "1", "note": "Best PMU in town"},
+               headers={"Origin": "http://localhost:3000"})
+    assert "✓ Saved" in r.text and "window.close" in r.text
+    link = db.search("")[0]
+    assert link["why"] == ["competitor"] and "project-delia" in link["tags"] and link["want_commdata"] == 1
+    assert link["note"] == "> Best PMU in town"
+
+    # saving the same page again merges, doesn't duplicate
+    assert "Already in your library" in c.get("/save", params={"url": "https://www.mero.ro/j"}).text
+    c.post("/save", data={"url": "https://www.mero.ro/j", "why": "pricing", "note": "Best PMU in town"})
+    link = db.get(link["id"])
+    assert db.count() == 1 and link["why"] == ["competitor", "pricing"] and link["note"] == "> Best PMU in town"
+
+    # another website can't post into the library
+    r = c.post("/add", data={"text": "https://evil.example"}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403 and db.count() == 1
+    r = c.post(f"/links/{link['id']}/delete", headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403 and db.count() == 1

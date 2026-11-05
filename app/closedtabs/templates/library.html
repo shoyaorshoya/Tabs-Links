@@ -19,6 +19,7 @@
 {% block body %}
 <header class="topbar">
   <a class="logo small" href="/">Closed<span>Tabs</span></a>
+  <nav class="mainnav"><a href="/library" class="on">Library</a>{% for path, label in nav_extra|default([]) %}<a href="{{ path }}">{{ label }}</a>{% endfor %}<a href="/tools">Tools</a></nav>
   <form class="search" action="/library" method="get">
     <input type="search" name="q" value="{{ q }}" placeholder="Search everything: words, sources, tools, keywords…" aria-label="Search">
     {% for t in tag %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
