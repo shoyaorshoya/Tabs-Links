@@ -50,6 +50,9 @@ sync back. New notes in `ClosedTabs/Notes/` are imported. Approach adapted from
 
 ## Roadmap (suggested order)
 
+Done so far: one-click save (bookmarklet), Claude connector setup, project pages with AI brief, archive, weekly review, design pass v1.
+
+
 1. ~~Archive~~ ✅ done: archive / restore; unsorted items surface in the weekly review.
 2. ~~Project pages~~ ✅ done: /projects, with AI brief saved as a linked note.
 3. ~~Weekly review~~ ✅ done: /review (this week, to sort, worth another look).

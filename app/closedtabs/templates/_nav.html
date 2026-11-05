@@ -1,10 +1,20 @@
 <header class="topbar">
-  <a class="logo small" href="/">Closed<span>Tabs</span></a>
-  <nav class="mainnav">
+  <a class="logo small" href="/" title="ClosedTabs home">Closed<span>Tabs</span></a>
+  <nav class="mainnav" aria-label="Main">
     {% set here = request.url.path %}
-    <a href="/library" {% if here.startswith('/library') or here.startswith('/links') %}class="on"{% endif %}>Library</a>
-    {% for path, label in nav_extra|default([]) %}<a href="{{ path }}" {% if here.startswith(path) %}class="on"{% endif %}>{{ label }}</a>{% endfor %}
+    <a href="/library" {% if here.startswith('/library') or here.startswith('/links') or here.startswith('/notes') %}class="on"{% endif %}>Library</a>
+    {% for path, label in nav_extra|default([]) %}<a href="{{ path }}" {% if here.startswith(path) or (path == '/projects' and here.startswith('/compare')) %}class="on"{% endif %}>{{ label }}</a>{% endfor %}
     <a href="/tools" {% if here.startswith('/tools') %}class="on"{% endif %}>Tools</a>
   </nav>
-  {% block search %}{% endblock %}
+  <form class="search" action="/library" method="get" role="search">
+    <input type="search" name="q" value="{{ q|default('') }}" placeholder="Search everything…" aria-label="Search your library">
+    {% if filters is defined %}
+      {% for t in filters.tag %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
+      {% for w in filters.why %}<input type="hidden" name="why" value="{{ w }}">{% endfor %}
+      {% if filters.source %}<input type="hidden" name="source" value="{{ filters.source }}">{% endif %}
+      {% if filters.days %}<input type="hidden" name="days" value="{{ filters.days }}">{% endif %}
+      {% if filters.kind %}<input type="hidden" name="kind" value="{{ filters.kind }}">{% endif %}
+      {% if filters.archived %}<input type="hidden" name="archived" value="1">{% endif %}
+    {% endif %}
+  </form>
 </header>

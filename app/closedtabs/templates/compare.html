@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Compare · {{ project }} · ClosedTabs{% endblock %}
 {% block body %}
-<header class="topbar">
-  <a class="logo small" href="/">Closed<span>Tabs</span></a>
-  <a href="/library?{% for t in tags %}tag={{ t|urlencode }}&amp;{% endfor %}">← Back to the list</a>
-</header>
+{% include "_nav.html" %}
 <main class="compare">
+  <p class="crumbs"><a href="/projects">Projects</a> /{% for t in tags[1:] %} <a href="/projects/{{ t|urlencode }}">{{ t }}</a> /{% endfor %}</p>
   <div class="compare-head">
     <h1>Compare: {{ project }}</h1>
     <p class="muted">{{ table.n }} website{{ "s" if table.n != 1 }} with CommData.

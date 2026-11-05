@@ -17,20 +17,11 @@
 
 {% block head %}{% if processing %}<meta http-equiv="refresh" content="6">{% endif %}{% endblock %}
 {% block body %}
-<header class="topbar">
-  <a class="logo small" href="/">Closed<span>Tabs</span></a>
-  <nav class="mainnav"><a href="/library" class="on">Library</a>{% for path, label in nav_extra|default([]) %}<a href="{{ path }}">{{ label }}</a>{% endfor %}<a href="/tools">Tools</a></nav>
-  <form class="search" action="/library" method="get">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search everything: words, sources, tools, keywords…" aria-label="Search">
-    {% for t in tag %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
-    {% for w in why %}<input type="hidden" name="why" value="{{ w }}">{% endfor %}
-    {% if source %}<input type="hidden" name="source" value="{{ source }}">{% endif %}
-    {% if days %}<input type="hidden" name="days" value="{{ days }}">{% endif %}
-  </form>
-</header>
+{% include "_nav.html" %}
 
 <div class="layout">
-  <aside class="sidebar">
+  <aside class="sidebar" aria-label="Filters">
+    <button type="button" class="sidebar-close linklike" onclick="document.body.classList.remove('show-filters')">✕ Close</button>
     <a href="/library" class="side-link {% if not filtered %}active{% endif %}">All links <span>{{ total }}</span></a>
     <a href="{{ with_filters(filters, kind=(none if kind == 'link' else 'link')) }}" class="side-link sub {% if kind == 'link' %}active{% endif %}">🔗 Links <span>{{ n_links }}</span></a>
     <a href="{{ with_filters(filters, kind=(none if kind == 'note' else 'note')) }}" class="side-link sub {% if kind == 'note' %}active{% endif %}">📝 Notes <span>{{ n_notes }}</span></a>
@@ -106,8 +97,9 @@
   </aside>
 
   <main class="content">
+    <button type="button" class="filters-toggle btn btn-light btn-sm" onclick="document.body.classList.toggle('show-filters')">☰ Filters{% if filtered %} (on){% endif %}</button>
     <form class="add" action="/add" method="post">
-      <textarea name="text" rows="1" placeholder="Paste a link (or several, one per line), or type a quick note…" required
+      <textarea name="text" rows="1" placeholder="Paste a link, or type a quick note…" title="Several links: one per line. Shift + Enter = new line." required
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"
         oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
       <button class="btn" type="submit">Save</button>
@@ -165,7 +157,7 @@
         <div class="meta"><a class="src" href="{{ with_filters(filters, kind='note') }}">📝 Note</a> · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">open</a>
           <form class="inline" action="/links/{{ l.id }}/archive" method="post"><input type="hidden" name="on" value="{{ 0 if l.archived else 1 }}"><input type="hidden" name="back" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"><button class="linklike muted-btn">{{ "restore" if l.archived else "archive" }}</button></form></div>
         <a class="card-title" href="/links/{{ l.id }}">{{ l.title }}</a>
-        {% if l.content %}<p class="summary">{{ l.content[:300] }}</p>{% endif %}
+        {% if l.content %}<p class="summary">{{ l.content|plain_refs|truncate(300) }}</p>{% endif %}
         {% else %}
         <div class="meta">
           <a class="src" href="{{ with_filters(filters, source=l.source) }}" title="All links from {{ l.source }}">{{ l.source or l.site }}</a>
@@ -179,7 +171,7 @@
         {% if l.status == "pending" %}<p class="muted">⏳ {{ "Labelling…" if l.kind == "note" else "Reading the page…" }}{% if l.want_commdata %} (with CommData){% endif %}</p>
         {% else %}
           {% if l.kind != "note" and (l.summary or l.description) %}<p class="summary">{{ l.summary or l.description }}</p>{% endif %}
-          {% if l.error %}<p class="warn">{{ l.error }}</p>{% endif %}
+          {% if l.error %}<p class="warn card-warn" title="{{ l.error }}">⚠ {{ l.error }}</p>{% endif %}
         {% endif %}
         {% if l.note %}<p class="note">✎ {{ l.note }}</p>{% endif %}
         <div class="tags">

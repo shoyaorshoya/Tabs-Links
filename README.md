@@ -59,5 +59,5 @@ Endpoints: `/` welcome · `/library` · `/links/{id}` · `/export.json` · `/api
 
 - [x] v0: research, structure, label system
 - [x] v1: ClosedTabs app, local only, no login, AI labels, Claude connector
-- [ ] v2: design pass (from `docs/03-wireframes.md`)
+- [x] v2: one-click save, Claude setup, Obsidian sync, project pages + AI brief, archive, weekly review, design pass
 - [ ] v3: browser extension / one-click save, weekly "rediscovery" digest

@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% block title %}New note · ClosedTabs{% endblock %}
 {% block body %}
-<header class="topbar">
-  <a class="logo small" href="/">Closed<span>Tabs</span></a>
-  <a href="/library">← Back to library</a>
-</header>
+{% include "_nav.html" %}
 <main class="detail">
+  <p class="crumbs"><a href="/library">Library</a> /</p>
   <h1>New note</h1>
   <form class="box note-form" action="/notes" method="post">
     <input name="title" placeholder="Title" autofocus>

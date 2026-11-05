@@ -825,3 +825,14 @@ def test_archive_and_weekly_review(monkeypatch):
     # restore
     c.post(f"/links/{old_other}/archive", data={"on": "0", "back": "/library"})
     assert db.get(old_other)["archived"] == 0 and db.count() == 4
+
+
+def test_note_rendering_markdown_lite():
+    from closedtabs import notes
+    i, _ = db.add("https://a.example/")
+    db.update(i, title="Salon A")
+    html = notes.render(f"Overview\nSalons compete on **trust** [[#{i}]].\n\n## Next steps\n- Interview Delia\n- Test an angle\n\n1. one\n2. two\n\nJust a sentence.")
+    assert "<h4>Overview</h4>" in html and "<strong>trust</strong>" in html and ">Salon A</a>" in html
+    assert "<h4>Next steps</h4>\n<ul><li>Interview Delia</li><li>Test an angle</li></ul>" in html
+    assert "<ul><li>one</li><li>two</li></ul>" in html and "<p>Just a sentence.</p>" in html
+    assert "<script>" not in notes.render("**<script>x</script>**")

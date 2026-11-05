@@ -84,6 +84,7 @@ def _with(filters: dict, **changes) -> str:
 
 templates.env.globals["with_filters"] = _with
 templates.env.filters["render_note"] = notes.render
+templates.env.filters["plain_refs"] = notes.plain
 templates.env.globals["nav_extra"] = [("/projects", "Projects"), ("/review", "Review")]
 templates.env.tests["search"] = lambda value, pattern: re.search(pattern, str(value)) is not None
 

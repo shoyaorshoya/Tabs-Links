@@ -2,11 +2,9 @@
 {% block title %}{{ link.title or link.url }} · ClosedTabs{% endblock %}
 {% block head %}{% if link.status == "pending" %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block body %}
-<header class="topbar">
-  <a class="logo small" href="/">Closed<span>Tabs</span></a>
-  <a href="/library">← Back to library</a>
-</header>
+{% include "_nav.html" %}
 <main class="detail">
+  <p class="crumbs"><a href="/library">Library</a> /{% for t in link.tags if "/" not in t and t != "commdata" %} <a href="/projects/{{ t|urlencode }}">{{ t }}</a> /{% endfor %}</p>
   {% set is_note = link.kind == "note" %}
   <h1>{% if is_note %}<span class="kind-badge">Note</span> {% endif %}{{ link.title or link.url }}</h1>
   <p class="meta">
