@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Compare · {{ project }} · ClosedTabs{% endblock %}
+{% block body %}
+<header class="topbar">
+  <a class="logo small" href="/">Closed<span>Tabs</span></a>
+  <a href="/library?{% for t in tags %}tag={{ t|urlencode }}&amp;{% endfor %}">← Back to the list</a>
+</header>
+<main class="compare">
+  <div class="compare-head">
+    <h1>Compare: {{ project }}</h1>
+    <p class="muted">{{ table.n }} website{{ "s" if table.n != 1 }} with CommData.
+      <a href="/export/commdata.csv?{% for t in tags[1:] %}tag={{ t|urlencode }}&amp;{% endfor %}">CSV</a> ·
+      <a href="/export/commdata.csv?{% for t in tags[1:] %}tag={{ t|urlencode }}&amp;{% endfor %}sep=semicolon">CSV (;)</a></p>
+  </div>
+
+  {% if table.n == 0 %}
+    <p class="empty">No websites with CommData here yet. Save some with the CommData box ticked.</p>
+  {% else %}
+  {% set ins = table.insights %}
+  {% if table.n > 1 and (ins.shared_keywords or ins.shared_tools or ins.unique_tools) %}
+  <section class="insights">
+    {% if ins.shared_keywords %}
+    <div class="box"><h3>Shared keywords</h3><p class="muted">Words &amp; phrases several sites focus on (number of sites)</p>
+      <p class="kw">{% for k, c in ins.shared_keywords %}<span>{{ k }} <small>{{ c }}/{{ table.n }}</small></span>{% endfor %}</p></div>
+    {% endif %}
+    {% if ins.shared_tools %}
+    <div class="box"><h3>Common tools</h3><p class="muted">Technology used by several sites</p>
+      <p class="kw">{% for k, c in ins.shared_tools %}<span>{{ k }} <small>{{ c }}/{{ table.n }}</small></span>{% endfor %}</p></div>
+    {% endif %}
+    {% if ins.unique_tools %}
+    <div class="box"><h3>Only one site uses…</h3>
+      {% for name, tools in ins.unique_tools %}<p><b>{{ name }}</b>: {{ tools|join(", ") }}</p>{% endfor %}</div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="table-wrap">
+  <table class="cmp">
+    <thead><tr><th></th>{% for c in table.cols %}<th><a href="/links/{{ c.id }}" title="{{ c.title }}">{{ c.name }}</a></th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in table.rows %}
+      {% if r.section %}<tr class="sec"><th colspan="{{ table.cols|length + 1 }}">{{ r.section }}</th></tr>
+      {% else %}<tr><th>{{ r.label }}{% if r.hint %}<small>{{ r.hint }}</small>{% endif %}</th>
+        {% for c in r.cells %}<td class="{{ c.cls }}">{% if c.href %}<a href="{{ c.href }}" target="_blank" rel="noopener">{{ c.text }}</a>{% else %}{{ c.text }}{% endif %}</td>{% endfor %}</tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if table.missing %}<p class="muted">Not in the table (data not collected yet): {% for l in table.missing %}<a href="/links/{{ l.id }}">{{ l.source or l.title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  <p class="muted">Green = good / best in the group · amber = worth a look. Data is from when each page was last read.</p>
+  {% endif %}
+</main>
+{% endblock %}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from mcp.server.mcpserver import MCPServer
 
-from . import db
+from . import db, notes
 from .urls import clean_url
 
 mcp = MCPServer(
@@ -18,6 +18,8 @@ mcp = MCPServer(
         "the marketing/tech stack (analytics, ad pixels, CMS, CRM, consent, chat), social profiles and "
         "public contact links (only for links labelled commdata; the owner uses these, grouped by "
         "project label, for client communication analyses). search_links also matches technology names, e.g. 'Meta Pixel' or 'HubSpot'. "
+        "The library also holds the owner's own notes (kind 'note'); notes link to other items with "
+        "[[Title]] and get_link lists those connections. "
         "Always give the user the URL of anything you recommend."
     ),
 )
@@ -25,7 +27,8 @@ mcp = MCPServer(
 
 def _brief(link: dict) -> dict:
     return {
-        "id": link["id"], "url": link["url"], "title": link["title"], "source": link["source"],
+        "id": link["id"], "kind": link["kind"], "url": "" if link["kind"] == "note" else link["url"],
+        "title": link["title"], "source": link["source"],
         "platform": link["source_kind"], "why_saved": link["why"],
         "summary": link["summary"] or link["description"], "tags": link["tags"], "note": link["note"],
     }
@@ -53,7 +56,12 @@ def get_link(link_id: int, max_chars: int = 20000) -> dict:
     if not link:
         return {"error": f"No link with id {link_id}"}
     seo = dict(link["seo"] or {})
-    return dict(_brief(link), content=link["content"][:max_chars], status=link["status"], website_data=seo)
+    links_to = [{"id": r["id"], "title": r["title"]} for r in
+                (db.resolve_ref(x) for x in notes.refs(link["content"] if link["kind"] == "note" else "")
+                 + notes.refs(link["note"])) if r]
+    linked_from = [{"id": r["id"], "title": r["title"]} for r in db.backlinks(link)]
+    return dict(_brief(link), kind=link["kind"], content=link["content"][:max_chars], status=link["status"],
+                website_data=seo, links_to=links_to, linked_from=linked_from)
 
 
 @mcp.tool()
@@ -86,6 +94,27 @@ def add_link(url: str, why: str = "", labels: str = "", commdata: bool = False, 
             db.update(link_id, want_commdata=1, status="pending")
             worker.submit(link_id)
     return {"id": link_id, "created": created}
+
+
+@mcp.tool()
+def add_note(text: str, title: str = "", why: str = "", labels: str = "") -> dict:
+    """Save a note (no web address) in the owner's library, e.g. an idea, a summary you wrote together,
+    meeting notes or a synthesis of several saved links. Use [[Exact title]] or [[#id]] inside the
+    text to link to other saved items; those show up as connections.
+
+    Args:
+        text: the note body (plain text; blank lines separate paragraphs).
+        title: optional title (default: the first line of the text).
+        why: why it was saved, comma-separated keywords (optional).
+        labels: project / own labels, comma separated (optional).
+    """
+    from . import taxonomy
+    from .enrich import worker
+
+    own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
+    note_id = db.add_note(text, title=title, why=taxonomy.why_keywords(why), tags=own)
+    worker.submit(note_id)
+    return {"id": note_id}
 
 
 @mcp.tool()

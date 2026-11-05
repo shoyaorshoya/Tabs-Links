@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import commdata_csv, db, enrich, providers, taxonomy
+from . import commdata_csv, compare, db, enrich, notes, providers, taxonomy
 from .mcp_tools import mcp
 from .urls import parse_bookmarks_html, parse_text
 
@@ -69,6 +69,7 @@ def _with(filters: dict, **changes) -> str:
 
 
 templates.env.globals["with_filters"] = _with
+templates.env.filters["render_note"] = notes.render
 templates.env.tests["search"] = lambda value, pattern: re.search(pattern, str(value)) is not None
 
 
@@ -118,14 +119,16 @@ def welcome(request: Request):
 
 @app.get("/library", response_class=HTMLResponse)
 def library(request: Request, q: str = "", tag: list[str] = Query([]), why: list[str] = Query([]),
-            source: str = "", days: int = 0, sort: str = "new", msg: str = ""):
+            source: str = "", days: int = 0, sort: str = "new", kind: str = "", msg: str = ""):
     tag = [t for t in tag if t]
     why = [w for w in why if w]
-    links = db.search(q, tag, why=why, source=source, since_days=days or None, sort=sort, limit=500)
-    filters = {"q": q, "tag": tag, "why": why, "source": source, "days": days, "sort": sort}
+    kind = kind if kind in ("link", "note") else ""
+    links = db.search(q, tag, why=why, source=source, since_days=days or None, sort=sort, kind=kind, limit=500)
+    filters = {"q": q, "tag": tag, "why": why, "source": source, "days": days, "kind": kind, "sort": sort}
     return templates.TemplateResponse(request, "library.html", {
         "links": links, "q": q, "tag": tag, "why": why, "source": source, "days": days, "sort": sort,
-        "filters": filters, "filtered": bool(q or tag or why or source or days),
+        "kind": kind, "n_notes": db.count_kind("note"), "n_links": db.count_kind("link"),
+        "filters": filters, "filtered": bool(q or tag or why or source or days or kind),
         "msg": msg, "tags": db.tag_counts(), "whys": db.why_counts(), "sources": db.source_counts(),
         "week": db.count_since(7),
         "projects": db.commdata_projects(), "commdata_view": taxonomy.COMMDATA in tag,
@@ -140,8 +143,41 @@ def add(text: str = Form(""), why: str = Form(""), note: str = Form(""), labels:
     items = parse_text(text)
     own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
     keywords = taxonomy.why_keywords(why or note)
+    if not items and text.strip():  # no web address in it: keep it as a note
+        note_id = db.add_note(text, why=keywords, tags=own)
+        enrich.worker.submit(note_id)
+        return _back(msg="Saved as a note (there was no web address in it).")
     added, dup = _save_many(items, keywords, own, commdata=bool(commdata))
     return _back(msg=_msg(added, dup))
+
+
+@app.get("/notes/new", response_class=HTMLResponse)
+def new_note(request: Request, why: str = "", labels: str = "", ref: int = 0):
+    start = ""
+    if ref and (item := db.get(ref)):
+        start = f"[[{item['title']}]]\n\n"
+    return templates.TemplateResponse(request, "note_new.html", {
+        "why": why, "labels": labels, "start": start,
+        "whys": db.why_counts(), "tags": db.tag_counts()})
+
+
+@app.post("/notes")
+def create_note(title: str = Form(""), text: str = Form(""), why: str = Form(""), labels: str = Form("")):
+    if not (title.strip() or text.strip()):
+        return _back(msg="The note was empty, nothing saved.")
+    own = [l for l in taxonomy.own_labels(labels) if l != taxonomy.COMMDATA]
+    note_id = db.add_note(text, title=title.strip(), why=taxonomy.why_keywords(why), tags=own)
+    enrich.worker.submit(note_id)
+    return RedirectResponse(f"/links/{note_id}", status_code=303)
+
+
+@app.get("/compare", response_class=HTMLResponse)
+def compare_view(request: Request, tag: list[str] = Query([])):
+    tags = [taxonomy.COMMDATA] + [t for t in tag if t and t != taxonomy.COMMDATA]
+    links = db.search("", tags, limit=60, sort="source")
+    return templates.TemplateResponse(request, "compare.html", {
+        "links": links, "tags": tags, "project": ", ".join(tags[1:]) or "all CommData websites",
+        "table": compare.build(links)})
 
 
 @app.post("/import")
@@ -178,22 +214,32 @@ def export_commdata(tag: list[str] = Query([]), sep: str = ""):
 
 
 @app.get("/links/{link_id}", response_class=HTMLResponse)
-def detail(request: Request, link_id: int):
+def detail(request: Request, link_id: int, edit: int = 0):
     link = db.get(link_id)
     if not link:
         return _back(msg="That link no longer exists.")
-    return templates.TemplateResponse(request, "detail.html", {"link": link, "ai": enrich.ai_enabled()})
+    return templates.TemplateResponse(request, "detail.html", {
+        "link": link, "ai": enrich.ai_enabled(), "backlinks": db.backlinks(link), "edit": edit,
+        "outgoing": [r for r in (db.resolve_ref(x) for x in notes.refs(link["content"] if link["kind"] == "note"
+                                                                      else "") + notes.refs(link["note"])) if r]})
 
 
 @app.post("/links/{link_id}/edit")
-def edit(link_id: int, tags: str = Form(""), note: str = Form(""), why: str = Form("")):
+def edit(link_id: int, tags: str = Form(""), note: str = Form(""), why: str = Form(""),
+         title: str = Form(None), text: str = Form(None)):
     link = db.get(link_id)
     new = set(taxonomy.own_labels(tags))
     # The CommData label follows the data, not the text box.
     new.discard(taxonomy.COMMDATA)
     if link and link["want_commdata"] and link["seo"]:
         new.add(taxonomy.COMMDATA)
-    db.update(link_id, tags=sorted(new), note=note.strip(), why=taxonomy.why_keywords(why))
+    extra = {}
+    if link and link["kind"] == "note":
+        if title is not None:
+            extra["title"] = title.strip() or "Untitled note"
+        if text is not None:
+            extra["content"] = text.strip()
+    db.update(link_id, tags=sorted(new), note=note.strip(), why=taxonomy.why_keywords(why), **extra)
     return RedirectResponse(f"/links/{link_id}", status_code=303)
 
 

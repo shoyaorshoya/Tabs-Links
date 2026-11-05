@@ -517,3 +517,88 @@ def test_migration_moves_note_to_why_and_fills_sources(tmp_path):
     assert a["why"] == ["project delia", "pricing"] and a["note"] == "" and a["source"] == "mero.ro"
     assert b["why"] == [] and (b["source"], b["source_kind"]) == ("a/b", "GitHub")
     assert [l["id"] for l in db.search("pricing")] == [1]
+
+
+def test_notes_wikilinks_and_backlinks(monkeypatch):
+    from fastapi.testclient import TestClient
+    from closedtabs import notes, web
+
+    monkeypatch.setattr(enrich, "fetch", lambda url, **kw: enrich.parse_page(PAGE, url))
+    monkeypatch.setattr(enrich, "video_info", lambda url: {})
+    c = TestClient(web.app)
+    c.post("/add", data={"text": "https://www.mero.ro/judith"})
+    salon = db.search("")[0]
+    enrich.enrich(salon["id"])
+    salon = db.get(salon["id"])
+
+    # typing text without a web address into the main box makes a note
+    r = c.post("/add", data={"text": "Idea: trust signals\nSalons win on reviews.", "why": "insight",
+                             "labels": "project-delia"}, follow_redirects=False)
+    assert "Saved+as+a+note" in r.headers["location"]
+    idea = db.search("", kind="note")[0]
+    assert idea["title"] == "Idea: trust signals" and idea["content"] == "Salons win on reviews."
+    assert idea["why"] == ["insight"] and "project-delia" in idea["tags"] and idea["source"] == "My notes"
+
+    # a longer note that links to the salon (by source name) and to the idea (by #id)
+    r = c.post("/notes", data={"title": "Delia: competitor summary",
+                               "text": f"Compared [[mero.ro]] with others.\n\nSee [[#{idea['id']}]] and [[Nothing Here]]. https://example.org/x",
+                               "why": "synthesis", "labels": "project-delia"}, follow_redirects=False)
+    summary_id = int(r.headers["location"].rsplit("/", 1)[1])
+    html = notes.render(db.get(summary_id)["content"])
+    assert f'href="/links/{salon["id"]}"' in html and f'href="/links/{idea["id"]}"' in html
+    assert 'class="wikilink missing"' in html and 'href="https://example.org/x"' in html
+    assert "<script" not in notes.render("<script>alert(1)</script>")          # escaped
+    assert [b["id"] for b in db.backlinks(salon)] == [summary_id]
+    assert [b["id"] for b in db.backlinks(idea)] == [summary_id]
+
+    page = c.get(f"/links/{salon['id']}").text
+    assert "Linked from" in page and "Delia: competitor summary" in page
+    page = c.get(f"/links/{summary_id}").text
+    assert "Links to" in page and "Edit note" in page
+
+    # editing a note
+    c.post(f"/links/{summary_id}/edit", data={"title": "Delia summary v2", "text": "New body",
+                                               "why": "synthesis", "tags": "project-delia", "note": ""})
+    assert db.get(summary_id)["title"] == "Delia summary v2" and db.get(summary_id)["content"] == "New body"
+
+    # filters: notes vs links
+    assert {l["kind"] for l in db.search("", kind="note")} == {"note"}
+    assert c.get("/library?kind=note").text.count('class="card"') == 2
+    assert all(s != "My notes" for s, _, _ in db.source_counts())          # notes aren't a "source"
+
+
+def test_note_ai_labels(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr(providers, "label", lambda url, page, chars, note="", known=None:
+                        {"type": "article", "topics": ["trust-signals"], "summary": "S"})
+    i = db.add_note("Short idea about trust", why=["insight"])
+    enrich.enrich(i)
+    n = db.get(i)
+    assert n["status"] == "done" and n["tags"] == ["topic/trust-signals", "type/note"] and n["summary"] == ""
+    assert i not in db.unlabeled_ids()
+
+
+def test_compare_view(monkeypatch):
+    from fastapi.testclient import TestClient
+    from closedtabs import compare, seo, web
+
+    a = seo.analyze(SITE, "https://a.example/")
+    b = seo.analyze(SITE.replace("fbq('init', '123');", "").replace("Machiaj", "Tatuaj"), "https://b.example/")
+    for url, data in (("https://a.example/", a), ("https://b.example/", b)):
+        i, _ = db.add(url, why=[])
+        db.update(i, seo=data, want_commdata=1, tags=["commdata", "project-delia"], status="done")
+    i, _ = db.add("https://c.example/")
+    db.update(i, want_commdata=1, tags=["commdata", "project-delia"], status="done")   # no data yet
+
+    t = compare.build(db.search("", ["commdata", "project-delia"]))
+    assert t["n"] == 2 and len(t["cols"]) == 2 and [l["url"] for l in t["missing"]] == ["https://c.example/"]
+    assert ("Google Analytics 4", 2) in t["insights"]["shared_tools"]
+    assert ("a.example", ["Meta Pixel"]) in t["insights"]["unique_tools"]
+    assert any(k == "permanent" for k, _ in t["insights"]["shared_keywords"])
+    labels = [r.get("label") for r in t["rows"]]
+    assert "SEO checks passed" in labels and "Instagram" in labels and "Ad pixels" in labels
+
+    page = TestClient(web.app).get("/compare?tag=project-delia").text
+    assert "Compare: project-delia" in page and "Common tools" in page and "Only one site uses" in page
+    lib = TestClient(web.app).get("/library?tag=commdata&tag=project-delia").text
+    assert "/compare?tag=project-delia" in lib

@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS links (
   want_commdata INTEGER NOT NULL DEFAULT 0,   -- 1 = collect website data for this link
   why         TEXT NOT NULL DEFAULT '[]',     -- "why am I saving this" keywords, JSON list
   source      TEXT NOT NULL DEFAULT '',       -- readable source: mero.ro, user/repo, channel…
-  source_kind TEXT NOT NULL DEFAULT ''        -- website | GitHub | YouTube | LinkedIn | …
+  source_kind TEXT NOT NULL DEFAULT '',       -- website | GitHub | YouTube | LinkedIn | …
+  kind        TEXT NOT NULL DEFAULT 'link'    -- link | note (a note has no web address; url = note:<id>)
 );
 """
 
@@ -44,7 +45,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS links_fts USING fts5(
 """
 
 FIELDS = ("title", "description", "image", "site", "content", "summary", "tags", "note", "status", "error", "seo", "want_commdata",
-          "why", "source", "source_kind")
+          "why", "source", "source_kind", "kind")
 FTS_COLUMNS = {"seo", "why", "source"}
 
 
@@ -71,6 +72,8 @@ def _migrate(c: sqlite3.Connection) -> None:
             name, kind = from_url(r[1])
             c.execute("UPDATE links SET why=?, note='', source=?, source_kind=? WHERE id=?",
                       (json.dumps(why_keywords(r[2]), ensure_ascii=False), name, kind, r[0]))
+    if "kind" not in cols:
+        c.execute("ALTER TABLE links ADD COLUMN kind TEXT NOT NULL DEFAULT 'link'")
     fts_cols = {r[1] for r in c.execute("PRAGMA table_info(links_fts)")}
     stale = bool(fts_cols) and not FTS_COLUMNS <= fts_cols
     if stale:
@@ -149,6 +152,61 @@ def add(url: str, title: str = "", note: str = "", why: list[str] | None = None)
         return cur.lastrowid, True
 
 
+NOTE_SOURCE = ("My notes", "note")
+
+
+def add_note(text: str, title: str = "", why: list[str] | None = None, tags: list[str] | None = None) -> int:
+    """A note without a web address. Title = given title, or the first line of the text."""
+    import uuid
+
+    text = (text or "").strip()
+    first, _, rest = text.partition("\n")
+    if not title:
+        title, body = first.strip()[:200], (rest.strip() if len(first) <= 200 else text)
+    else:
+        body = text
+    with _lock:
+        c = conn()
+        cur = c.execute(
+            "INSERT INTO links(url,title,content,why,tags,source,source_kind,kind,created_at) "
+            "VALUES (?,?,?,?,?,?,?,'note',?)",
+            (f"note:{uuid.uuid4().hex[:12]}", title or "Untitled note", body,
+             json.dumps(why or [], ensure_ascii=False), json.dumps(sorted(set(tags or []))),
+             *NOTE_SOURCE, time.time()),
+        )
+        _reindex(c, cur.lastrowid)
+        c.commit()
+        return cur.lastrowid
+
+
+def resolve_ref(ref: str) -> dict | None:
+    """Find the item a [[reference]] points to: '#12', an exact title, or a source name."""
+    ref = ref.strip()
+    with _lock:
+        c = conn()
+        if re.fullmatch(r"#\d+", ref):
+            return _row(c.execute("SELECT * FROM links WHERE id=?", (int(ref[1:]),)).fetchone())
+        r = c.execute("SELECT * FROM links WHERE LOWER(title)=LOWER(?) ORDER BY kind='note' DESC, id LIMIT 1",
+                      (ref,)).fetchone()
+        if r is None:
+            r = c.execute("SELECT * FROM links WHERE LOWER(source)=LOWER(?) AND kind='link' ORDER BY id LIMIT 1",
+                          (ref,)).fetchone()
+        return _row(r)
+
+
+def backlinks(link: dict) -> list[dict]:
+    """Items whose text or note mentions this one as [[Title]] or [[#id]]."""
+    keys = {f"[[#{link['id']}]]", f"[[{link['title'].lower()}]]"}
+    if link.get("kind") == "link" and link.get("source"):
+        keys.add(f"[[{link['source'].lower()}]]")
+    where = " OR ".join(["LOWER(content) LIKE ? OR LOWER(note) LIKE ?"] * len(keys))
+    args = [a for k in keys for a in (f"%{k}%", f"%{k}%")]
+    with _lock:
+        rows = conn().execute(f"SELECT * FROM links WHERE id != ? AND ({where}) ORDER BY created_at DESC",
+                              (link["id"], *args)).fetchall()
+        return [_row(r) for r in rows]
+
+
 def update(link_id: int, **fields) -> None:
     fields = {k: v for k, v in fields.items() if k in FIELDS}
     if "tags" in fields and not isinstance(fields["tags"], str):
@@ -203,7 +261,7 @@ SORTS = {"new": "l.created_at DESC", "old": "l.created_at ASC", "source": "l.sou
 
 def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int = 0,
            why: str | list[str] = "", source: str = "", since_days: int | None = None,
-           sort: str = "new") -> list[dict]:
+           sort: str = "new", kind: str = "") -> list[dict]:
     """Filter by words (q), labels (tag), why-keywords, source and age. All filters combine (AND).
     Sorted newest first by default; with q and sort='new', best match first."""
     sql, args = "SELECT l.* FROM links l", []
@@ -224,6 +282,9 @@ def search(q: str = "", tag: str | list[str] = "", limit: int = 200, offset: int
     if source:
         where.append("l.source = ?")
         args.append(source)
+    if kind:
+        where.append("l.kind = ?")
+        args.append(kind)
     if since_days:
         where.append("l.created_at >= ?")
         args.append(time.time() - since_days * 86400)
@@ -259,9 +320,14 @@ def source_counts() -> list[tuple[str, str, int]]:
     """(source, kind, count), most links first."""
     with _lock:
         rows = conn().execute(
-            "SELECT source, MAX(source_kind) AS kind, COUNT(*) AS n FROM links WHERE source != '' "
+            "SELECT source, MAX(source_kind) AS kind, COUNT(*) AS n FROM links WHERE source != '' AND kind = 'link' "
             "GROUP BY source ORDER BY n DESC, source COLLATE NOCASE").fetchall()
         return [(r["source"], r["kind"], r["n"]) for r in rows]
+
+
+def count_kind(kind: str) -> int:
+    with _lock:
+        return conn().execute("SELECT COUNT(*) FROM links WHERE kind=?", (kind,)).fetchone()[0]
 
 
 def count_since(days: int) -> int:

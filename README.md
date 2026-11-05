@@ -21,6 +21,8 @@ description, and makes it searchable, for you and for Claude.
 | Tick *CommData* | Collects website data: SEO checks, top keywords & phrases, headings, structured data, marketing/tech stack (analytics, ad pixels, CMS, CRM, consent, chat), social profiles, public contact links. Adds the **CommData** label, groups sites by project, exports CSV |
 | Search or click a label | Full-text search over titles, summaries, notes and page text |
 | Import a bookmarks file | Brings in all your old tabs/bookmarks at once |
+| Type text without a link | Saves a **note**; `[[Title]]` links notes and links together (with backlinks) |
+| Open a CommData project → Compare | Competitor comparison side by side + shared keywords / tools |
 | Ask Claude | Claude searches, reads and saves links through the built-in MCP connector |
 
 ## Project layout
@@ -38,7 +40,7 @@ description, and makes it searchable, for you and for Claude.
 | `app/closedtabs/taxonomy.py` | The label lists and the AI instructions. Edit here to change labels. |
 | `deploy/` | Docker setup + settings file (`.env`) |
 | `claude/` | How to connect Claude + things to ask |
-| `docs/` | Research, architecture, wireframes, label system |
+| `docs/` | Research, architecture, wireframes, label system, second-brain roadmap (`05`) |
 
 ## For developers
 

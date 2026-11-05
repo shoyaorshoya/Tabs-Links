@@ -141,10 +141,30 @@ def video_info(url: str) -> dict:
 
 
 # ── pipeline ─────────────────────────────────────────────────────────
+def enrich_note(link: dict) -> None:
+    """Notes have no page to fetch: the AI labels the note's own text."""
+    fields = {"status": "done", "error": "", "summary": ""}
+    tags = set(link["tags"])
+    if ai_enabled() and (link["content"] or link["title"]):
+        page = {"title": link["title"], "description": "", "content": link["content"]}
+        try:
+            result = providers.label("(a personal note, not a web page)", page, AI_CHARS,
+                                     note=", ".join(link["why"]), known=db.topic_labels())
+            tags = {t for t in tags if not t.startswith(taxonomy.AI_PREFIXES)} | {"type/note"} | {
+                f"topic/{t}" for t in result["topics"]}
+            fields["summary"] = result["summary"] if len(link["content"]) > 400 else ""
+        except providers.LabelError as e:
+            fields.update(status="error", error=str(e)[:300])
+    fields["tags"] = sorted(tags)
+    db.update(link["id"], **fields)
+
+
 def enrich(link_id: int) -> None:
     link = db.get(link_id)
     if not link:
         return
+    if link["kind"] == "note":
+        return enrich_note(link)
     url = link["url"]
     want = bool(link["want_commdata"])
     try:

@@ -31,6 +31,8 @@
 <div class="layout">
   <aside class="sidebar">
     <a href="/library" class="side-link {% if not filtered %}active{% endif %}">All links <span>{{ total }}</span></a>
+    <a href="{{ with_filters(filters, kind=(none if kind == 'link' else 'link')) }}" class="side-link sub {% if kind == 'link' %}active{% endif %}">🔗 Links <span>{{ n_links }}</span></a>
+    <a href="{{ with_filters(filters, kind=(none if kind == 'note' else 'note')) }}" class="side-link sub {% if kind == 'note' %}active{% endif %}">📝 Notes <span>{{ n_notes }}</span></a>
     <a href="{{ with_filters({}, days=7) }}" class="side-link {% if days == 7 and not tag and not why and not source %}active{% endif %}">Last 7 days <span>{{ week }}</span></a>
 
     {% set cd = (tags|selectattr(0, "equalto", "commdata")|list) %}
@@ -96,7 +98,7 @@
 
   <main class="content">
     <form class="add" action="/add" method="post">
-      <textarea name="text" rows="1" placeholder="Paste a link (or several, one per line)…" required
+      <textarea name="text" rows="1" placeholder="Paste a link (or several, one per line), or type a quick note…" required
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"
         oninput="this.rows=Math.min(8,this.value.split('\n').length)" autofocus></textarea>
       <button class="btn" type="submit">Save</button>
@@ -105,7 +107,8 @@
       <input name="labels" list="known-labels" placeholder="Project / my labels, comma separated"
         value="{{ tag|reject('search', '/')|reject('equalto', 'commdata')|join(', ') }}">
       <label class="check"><input type="checkbox" name="commdata" value="1" {% if commdata_view %}checked{% endif %}>
-        <span>Collect website data (<b>CommData</b>): SEO, keywords, marketing stack, socials</span></label>
+        <span>Collect website data (<b>CommData</b>): SEO, keywords, marketing stack, socials</span>
+        <a class="newnote" href="/notes/new?why={{ why|join(', ')|urlencode }}&amp;labels={{ tag|reject('search', '/')|reject('equalto', 'commdata')|join(', ')|urlencode }}">📝 Write a longer note</a></label>
       <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
       <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
     </form>
@@ -121,12 +124,14 @@
           {% for t in tag %}<a class="fchip {% if t == 'commdata' %}cd{% endif %}" href="{{ with_filters(filters, tag=('-', t)) }}">{{ label_name(t) }} ×</a>{% endfor %}
           {% if source %}<a class="fchip" href="{{ with_filters(filters, source=none) }}">source: {{ source }} ×</a>{% endif %}
           {% if days %}<a class="fchip" href="{{ with_filters(filters, days=none) }}">last {{ days }} days ×</a>{% endif %}
+          {% if kind %}<a class="fchip" href="{{ with_filters(filters, kind=none) }}">{{ kind }}s only ×</a>{% endif %}
           <a class="clear" href="/library">clear all</a>
         {% endif %}
         <span class="muted">{{ links|length }} link{{ "s" if links|length != 1 }}</span>
       </div>
       <div class="view-controls">
         {% if commdata_view and links %}
+          <a class="btn btn-sm" href="/compare?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}">Compare</a>
           <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}">CSV</a>
           <a class="btn btn-light btn-sm" href="/export/commdata.csv?{% for t in tag if t != 'commdata' %}tag={{ t|urlencode }}&amp;{% endfor %}sep=semicolon" title="For Excel with Hungarian, Romanian, German… settings">CSV (;)</a>
         {% endif %}
@@ -146,6 +151,11 @@
     <article class="card">
       {% if l.image %}<img class="thumb" src="{{ l.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}
       <div class="card-body">
+        {% if l.kind == "note" %}
+        <div class="meta"><a class="src" href="{{ with_filters(filters, kind='note') }}">📝 Note</a> · {{ l.created_at|ago }} · <a href="/links/{{ l.id }}">open</a></div>
+        <a class="card-title" href="/links/{{ l.id }}">{{ l.title }}</a>
+        {% if l.content %}<p class="summary">{{ l.content[:300] }}</p>{% endif %}
+        {% else %}
         <div class="meta">
           <a class="src" href="{{ with_filters(filters, source=l.source) }}" title="All links from {{ l.source }}">{{ l.source or l.site }}</a>
           {% if l.source_kind and l.source_kind != "website" %}<span class="kind">{{ l.source_kind }}</span>{% endif %}
@@ -153,9 +163,10 @@
           {% for t in l.tags if t.startswith("type/") %}<span class="type">{{ label_name(t) }}</span>{% endfor %}
         </div>
         <a class="card-title" href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title or l.url }}</a>
-        {% if l.status == "pending" %}<p class="muted">⏳ Reading the page…{% if l.want_commdata %} (with CommData){% endif %}</p>
+        {% endif %}
+        {% if l.status == "pending" %}<p class="muted">⏳ {{ "Labelling…" if l.kind == "note" else "Reading the page…" }}{% if l.want_commdata %} (with CommData){% endif %}</p>
         {% else %}
-          {% if l.summary or l.description %}<p class="summary">{{ l.summary or l.description }}</p>{% endif %}
+          {% if l.kind != "note" and (l.summary or l.description) %}<p class="summary">{{ l.summary or l.description }}</p>{% endif %}
           {% if l.error %}<p class="warn">{{ l.error }}</p>{% endif %}
         {% endif %}
         {% if l.note %}<p class="note">✎ {{ l.note }}</p>{% endif %}

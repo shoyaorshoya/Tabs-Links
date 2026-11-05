@@ -162,3 +162,37 @@ body.compact .card-title { grid-column: 1; grid-row: 1; white-space: nowrap; ove
 body.compact .card .tags { grid-column: 1 / -1; margin-top: 0; }
 body.compact .card .type { margin-left: 4px; }
 @media (max-width: 760px) { body.compact .card-body { grid-template-columns: 1fr; } body.compact .card .meta { grid-column: 1; grid-row: auto; justify-content: flex-start; } }
+
+/* ── notes & connections ────────────────────────────────────── */
+.kind-badge { font-size: 12px; vertical-align: middle; background: var(--why-bg); color: var(--why);
+  border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+.note-form { display: grid; gap: 8px; }
+.note-form textarea { font: inherit; line-height: 1.6; resize: vertical; }
+.note-body p { margin: 0 0 10px; line-height: 1.65; overflow-wrap: anywhere; }
+.note-body.small { font-size: 14px; color: var(--muted); margin-top: 6px; }
+.wikilink { background: var(--tag); border-radius: 4px; padding: 0 4px; }
+.wikilink.missing { background: none; border-bottom: 1px dashed var(--muted); color: var(--muted); }
+.connections ul { margin: 4px 0 8px; padding-left: 18px; }
+.connections li { margin: 3px 0; }
+.ref { color: var(--accent); cursor: pointer; font-size: 13px; padding: 0; width: auto; }
+
+/* ── compare ────────────────────────────────────────────────── */
+.compare { padding: 20px 24px 60px; max-width: 1400px; margin: 0 auto; }
+.compare h1 { margin: 0 0 4px; font-size: 24px; }
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.insights .box { margin: 8px 0; }
+.insights p { margin: 4px 0; font-size: 14px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 12px 0; }
+.cmp { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+.cmp th, .cmp td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+.cmp thead th { position: sticky; top: 0; background: var(--surface); font-size: 14px; min-width: 170px; }
+.cmp tbody th { color: var(--muted); font-weight: 500; white-space: nowrap; position: sticky; left: 0; background: var(--surface); }
+.cmp tbody th small { display: block; font-size: 11px; font-weight: 400; }
+.cmp tr.sec th { background: var(--bg); color: var(--text); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.cmp td.ok { color: #15803d; }
+.cmp td.warn { color: var(--warn); }
+.cmp td.none { color: var(--muted); }
+.cmp td.small { font-size: 12px; color: var(--muted); max-width: 260px; }
+@media (prefers-color-scheme: dark) { .cmp td.ok { color: #4ade80; } }
+.newnote { margin-left: auto; font-size: 13px; white-space: nowrap; }
+.card:has(.src[href*="kind=note"]) { border-left: 3px solid var(--why); }

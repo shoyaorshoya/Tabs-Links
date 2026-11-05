@@ -7,20 +7,51 @@
   <a href="/library">← Back to library</a>
 </header>
 <main class="detail">
-  <h1>{{ link.title or link.url }}</h1>
-  <p class="meta"><b><a href="/library?source={{ link.source|urlencode }}" title="All links from this source">{{ link.source }}</a></b>{% if link.source_kind and link.source_kind != "website" %} ({{ link.source_kind }}){% endif %}
-    · <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.url }}</a> · saved {{ link.created_at|ago }}</p>
+  {% set is_note = link.kind == "note" %}
+  <h1>{% if is_note %}<span class="kind-badge">Note</span> {% endif %}{{ link.title or link.url }}</h1>
+  <p class="meta">
+    {% if is_note %}saved {{ link.created_at|ago }}
+    {% else %}<b><a href="/library?source={{ link.source|urlencode }}" title="All links from this source">{{ link.source }}</a></b>{% if link.source_kind and link.source_kind != "website" %} ({{ link.source_kind }}){% endif %}
+    · <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.url }}</a> · saved {{ link.created_at|ago }}{% endif %}
+    · <button type="button" class="linklike ref" data-ref="[[{{ link.title }}]]" title="Copy a reference to paste into a note">copy [[link]]</button>
+  </p>
 
-  {% if link.status == "pending" %}<p class="muted">⏳ Reading the page…</p>{% endif %}
+  {% if link.status == "pending" %}<p class="muted">⏳ {{ "Labelling the note…" if is_note else "Reading the page…" }}</p>{% endif %}
   {% if link.error %}<p class="warn">{{ link.error }}</p>{% endif %}
 
-  {% if link.summary or link.description %}
+  {% if is_note %}
+    {% if edit or not (link.content or link.title) %}
+    <form class="box note-form" action="/links/{{ link.id }}/edit" method="post">
+      <input name="title" value="{{ link.title }}" placeholder="Title">
+      <textarea name="text" rows="14">{{ link.content }}</textarea>
+      <input type="hidden" name="why" value="{{ link.why|join(', ') }}">
+      <input type="hidden" name="tags" value="{{ link.tags|join(', ') }}">
+      <input type="hidden" name="note" value="{{ link.note }}">
+      <button class="btn" type="submit">Save note</button> <a href="/links/{{ link.id }}">cancel</a>
+    </form>
+    {% else %}
+    <section class="box note-body">{{ link.content|render_note|safe }}
+      <p><a class="btn btn-light btn-sm" href="/links/{{ link.id }}?edit=1">Edit note</a></p></section>
+    {% endif %}
+  {% endif %}
+
+  {% if link.summary or (link.description and not is_note) %}
   <section class="box"><h3>Summary</h3><p>{{ link.summary or link.description }}</p></section>
   {% endif %}
 
+  {% if outgoing or backlinks %}
+  <section class="box connections">
+    {% if outgoing %}<h3>Links to</h3>
+      <ul>{% for r in outgoing %}<li><a href="/links/{{ r.id }}">{% if r.kind == "note" %}📝 {% endif %}{{ r.title or r.url }}</a> <span class="muted">{{ r.source }}</span></li>{% endfor %}</ul>{% endif %}
+    {% if backlinks %}<h3>Linked from</h3>
+      <ul>{% for r in backlinks %}<li><a href="/links/{{ r.id }}">{% if r.kind == "note" %}📝 {% endif %}{{ r.title or r.url }}</a> <span class="muted">{{ r.created_at|ago }}</span></li>{% endfor %}</ul>{% endif %}
+  </section>
+  {% endif %}
+  <p><a class="btn btn-light btn-sm" href="/notes/new?ref={{ link.id }}&amp;labels={{ link.tags|reject('search', '/')|reject('equalto', 'commdata')|join(', ')|urlencode }}">+ New note about this</a></p>
 
   {% set s = link.seo %}
-  {% if not link.want_commdata %}
+  {% if is_note %}
+  {% elif not link.want_commdata %}
   <form class="box cd-offer" action="/links/{{ link.id }}/commdata" method="post">
     <input type="hidden" name="on" value="1">
     <span>Website data (CommData) isn't collected for this link.</span>
@@ -79,18 +110,27 @@
     <input name="why" value="{{ link.why|join(', ') }}" placeholder="e.g. inspiration, pricing, onboarding">
     <h3>Labels <small class="muted">(comma separated. Add your own, e.g. project-delia, client. The AI never removes those.)</small></h3>
     <input name="tags" value="{{ link.tags|join(', ') }}">
-    <h3>Note <small class="muted">(free text, optional)</small></h3>
+    {% if not is_note %}
+    <h3>Note <small class="muted">(free text, optional; [[links]] to other items work here too)</small></h3>
     <textarea name="note" rows="3">{{ link.note }}</textarea>
+    {% if link.note %}<div class="note-body small">{{ link.note|render_note|safe }}</div>{% endif %}
+    {% endif %}
     <button class="btn" type="submit">Save changes</button>
   </form>
 
   <div class="actions">
-    <form action="/links/{{ link.id }}/retry" method="post"><button class="btn btn-light" type="submit">{% if ai %}Re-read page &amp; re-label{% else %}Re-read page{% endif %}</button></form>
-    <form action="/links/{{ link.id }}/delete" method="post" onsubmit="return confirm('Delete this link?')"><button class="btn btn-danger" type="submit">Delete</button></form>
+    <form action="/links/{{ link.id }}/retry" method="post"><button class="btn btn-light" type="submit">{% if is_note %}Re-label{% elif ai %}Re-read page &amp; re-label{% else %}Re-read page{% endif %}</button></form>
+    <form action="/links/{{ link.id }}/delete" method="post" onsubmit="return confirm('Delete this {{ 'note' if is_note else 'link' }}?')"><button class="btn btn-danger" type="submit">Delete</button></form>
   </div>
 
-  {% if link.content %}
+  {% if link.content and not is_note %}
   <details class="box"><summary>Saved page text</summary><pre class="pagetext">{{ link.content[:20000] }}</pre></details>
   {% endif %}
 </main>
+<script>
+  document.querySelectorAll(".ref").forEach(b => b.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(b.dataset.ref); b.textContent = "copied ✓"; }
+    catch (e) { prompt("Copy this reference:", b.dataset.ref); }
+  }));
+</script>
 {% endblock %}

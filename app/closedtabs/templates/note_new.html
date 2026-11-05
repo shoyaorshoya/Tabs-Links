@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}New note · ClosedTabs{% endblock %}
+{% block body %}
+<header class="topbar">
+  <a class="logo small" href="/">Closed<span>Tabs</span></a>
+  <a href="/library">← Back to library</a>
+</header>
+<main class="detail">
+  <h1>New note</h1>
+  <form class="box note-form" action="/notes" method="post">
+    <input name="title" placeholder="Title" autofocus>
+    <textarea name="text" rows="14" placeholder="Write anything: an idea, a quote, meeting notes…&#10;&#10;Link to other notes or saved links with [[their title]], e.g. [[mero.ro]].&#10;Web addresses become clickable.">{{ start }}</textarea>
+    <input name="why" list="known-whys" value="{{ why }}" placeholder="Why? Keywords, comma separated">
+    <input name="labels" list="known-labels" value="{{ labels }}" placeholder="Project / my labels, comma separated">
+    <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
+    <datalist id="known-labels">{% for t, n in tags %}{% if "/" not in t and t != "commdata" %}<option value="{{ t }}">{% endif %}{% endfor %}</datalist>
+    <button class="btn" type="submit">Save note</button>
+  </form>
+</main>
+{% endblock %}

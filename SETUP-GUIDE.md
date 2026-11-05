@@ -62,6 +62,14 @@ grouped by your project labels (e.g. `project-delia`). Open a project and click 
 **CSV for Excel (;)** if Excel puts everything in one column) to export them as a table.
 For an already-saved link: open **details** → **Collect CommData**.
 
+**Notes (no link):** type text without a web address into the top box and it's saved as a **note**.
+For longer notes, click **📝 Write a longer note**. Inside a note, write `[[title of another item]]`
+(or `[[mero.ro]]`) to link to it; each item then shows **Links to / Linked from**. On any item,
+**copy [[link]]** copies a ready-made reference.
+
+**Compare competitors:** open a CommData project (sidebar → CommData → project) and click **Compare**.
+You get the websites side by side, plus shared keywords, common tools, and what only one site uses.
+
 **Several at once:** paste many links, one per line, then click **Save**.
 
 **All your open tabs:**
