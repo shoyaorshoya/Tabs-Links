@@ -127,11 +127,14 @@ If a link shows an orange message (e.g. "key rejected"), fix the .env line it na
 
 ClosedTabs can mirror everything into your Obsidian vault as Markdown files, and take your edits back.
 
-1. Find your vault folder (the one that contains the hidden `.obsidian` folder). In Finder:
-   right-click it, hold **Option**, choose **Copy "…" as Pathname**.
-2. Open `deploy/.env` and paste it in double quotes:
-   `OBSIDIAN_VAULT="/Users/you/path/to/My Vault"`
-3. Restart ClosedTabs. It now syncs every 30 seconds, and **⟳ Sync with Obsidian** (sidebar → Import / export) syncs right away.
+**Easiest (Mac):** double-click **Connect-Obsidian.command** in the ClosedTabs folder.
+It finds your vaults by itself (the one open in Obsidian is listed first), saves the setting,
+restarts ClosedTabs, runs the first sync and opens the result in Obsidian.
+*First time: macOS may ask about an unidentified developer: right-click → Open → Open.*
+
+By hand instead: put the vault path in `deploy/.env` in double quotes, e.g.
+`OBSIDIAN_VAULT="/Users/you/path/to/My Vault"`, and restart ClosedTabs.
+It syncs every 30 seconds; **⟳ Sync with Obsidian** (sidebar → Import / export) syncs right away.
 
 In Obsidian you'll find a **ClosedTabs** folder: `ClosedTabs.md` (start page), `Links/`, `Notes/`,
 `Projects/`, `Why/`, `Sources/`. Graph view and backlinks work out of the box.
