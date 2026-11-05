@@ -188,3 +188,43 @@ def label(url: str, page: dict, ai_chars: int = 15_000, note: str = "",
     if p == "other":
         return _label_other(body)
     raise LabelError("AI is off: no API key configured.")
+
+
+# ── free text (project briefs) ───────────────────────────────────────
+def write(system: str, prompt: str, max_tokens: int = 4000) -> str:
+    """Plain text from whichever provider is configured (used for project briefs)."""
+    p = provider()
+    if p == "claude":
+        kwargs = {}
+        m = claude_model()
+        if m.startswith(_FALLBACK_PREFIXES):
+            kwargs = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
+        try:
+            resp = _claude().beta.messages.create(
+                model=m, max_tokens=max_tokens, system=system,
+                output_config={"effort": "medium"},
+                messages=[{"role": "user", "content": prompt}], **kwargs)
+        except anthropic.AuthenticationError:
+            raise LabelError("Claude API key was rejected. Check ANTHROPIC_API_KEY.")
+        except anthropic.APIConnectionError:
+            raise LabelError("Couldn't reach Claude. Check the internet connection.")
+        except anthropic.APIStatusError as e:
+            raise LabelError(f"Claude API error {e.status_code}: {e.message}"[:300])
+        if resp.stop_reason == "refusal":
+            raise LabelError("Claude declined to write this.")
+        return "\n".join(b.text for b in resp.content if b.type == "text").strip()
+    if p == "other":
+        try:
+            r = _post_chat({"model": _env("LLM_MODEL"), "messages": [
+                {"role": "system", "content": system}, {"role": "user", "content": prompt}]})
+        except httpx.HTTPError as e:
+            raise LabelError(f"Couldn't reach {_env('LLM_BASE_URL')} ({type(e).__name__}).")
+        if r.status_code == 402:
+            raise LabelError("Your AI provider account is out of credits.")
+        if r.status_code >= 300:
+            raise LabelError(f"AI provider error {r.status_code}: {r.text[:200]}")
+        try:
+            return (r.json()["choices"][0]["message"]["content"] or "").strip()
+        except (ValueError, KeyError, IndexError, TypeError):
+            raise LabelError("The AI provider sent an answer ClosedTabs couldn't read.")
+    raise LabelError("AI is off: add an AI key or Ollama first (see the guide).")

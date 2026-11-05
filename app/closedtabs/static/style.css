@@ -218,3 +218,30 @@ body.compact .card .type { margin-left: 4px; }
 .bookmarklet:hover { text-decoration: none; filter: brightness(1.08); }
 .steps { padding-left: 20px; line-height: 1.7; }
 code { font: 13px ui-monospace, monospace; background: var(--tag); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.side-row { display: flex; align-items: center; }
+.side-row .side-link { flex: 1; min-width: 0; }
+.side-go { color: var(--muted); padding: 4px 6px; border-radius: 6px; font-size: 13px; }
+.side-go:hover { background: var(--tag); color: var(--accent); text-decoration: none; }
+/* ── projects ───────────────────────────────────────────────── */
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 24px 60px; }
+.page h1 { margin: 0 0 4px; font-size: 26px; }
+.crumbs { margin: 0; font-size: 13px; }
+.small { font-size: 12px; }
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+.proj-card { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; color: var(--text); }
+.proj-card:hover { border-color: var(--accent); text-decoration: none; }
+.proj-card h3 { margin: 0 0 4px; font-size: 17px; }
+.proj-card p { margin: 4px 0; }
+.proj-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.add-proj { margin: 0 0 6px; }
+.brief-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.brief-head h3 { margin: 0; }
+.brief-form { display: flex; gap: 6px; }
+.brief-form select { font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.brief .note-body { margin-top: 10px; }
+.proj-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+ul.plain { list-style: none; padding: 0; margin: 6px 0; }
+ul.plain li { padding: 4px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+ul.plain li:first-child { border-top: 0; }
+.kw a:hover { text-decoration: none; }
+@media (max-width: 760px) { .proj-cols { grid-template-columns: 1fr; } .page { padding: 16px; } }

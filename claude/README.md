@@ -1,10 +1,10 @@
 # Connecting Claude to ClosedTabs
 
 ClosedTabs has a built-in connector (an MCP server) at `http://localhost:3000/mcp`.
-It gives Claude four tools: **search_links**, **get_link** (reads the saved page text),
-**add_link**, and **list_labels**.
+It gives Claude five tools: **search_links**, **get_link** (saved page text, website data,
+connections), **add_link**, **add_note** and **list_labels**.
 
-ClosedTabs must be running (Docker Desktop open) whenever Claude uses it.
+ClosedTabs must be running (autostart, ClosedTabs.command or Docker) whenever Claude uses it.
 
 ## Claude desktop app (Mac): one double-click
 

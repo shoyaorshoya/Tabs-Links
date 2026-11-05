@@ -27,7 +27,12 @@ def render(text: str) -> str:
                 ref = raw.split("|", 1)[1].strip() if "|" in raw else raw   # [[target|shown]]
                 item = db.resolve_ref(raw)
                 if item:
-                    pieces.append(f'<a class="wikilink" href="/links/{item["id"]}">{html.escape(ref)}</a>')
+                    shown = ref
+                    if re.fullmatch(r"#\d+", ref):  # [[#12]] reads better as the item's title
+                        t = item["title"] or item["url"]
+                        shown = t if len(t) <= 48 else t[:46] + "…"
+                    pieces.append(f'<a class="wikilink" href="/links/{item["id"]}" title="{html.escape(item["title"])}">'
+                                  f'{html.escape(shown)}</a>')
                 else:
                     pieces.append(f'<a class="wikilink missing" href="/library?q={html.escape(ref)}" '
                                   f'title="Nothing with this exact title yet: search instead">{html.escape(ref)}</a>')

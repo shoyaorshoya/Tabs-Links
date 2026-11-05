@@ -51,7 +51,7 @@ sync back. New notes in `ClosedTabs/Notes/` are imported. Approach adapted from
 ## Roadmap (suggested order)
 
 1. **Archive** + "status" (inbox → kept → archived), so the library doesn't silt up.
-2. **Project pages**: one page per project label with its links, notes, CommData comparison and a Claude-written brief.
+2. ~~Project pages~~ ✅ done: /projects, with AI brief saved as a linked note.
 3. **Weekly review**: "saved this week, not yet sorted"; resurface 5 older items related to active projects.
 4. **Distill with Claude**: "summarise everything I saved for project-delia into a note" → saved as a note with `[[links]]` to its sources (the `add_note` tool already allows this).
 5. **Topic hygiene**: merge near-duplicate topics; rename labels across all items.

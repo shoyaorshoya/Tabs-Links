@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import commdata_csv, compare, db, enrich, notes, obsidian, providers, taxonomy
+from . import commdata_csv, compare, db, enrich, notes, obsidian, projects, providers, taxonomy
 from .mcp_tools import mcp
 from .urls import parse_bookmarks_html, parse_text
 
@@ -84,6 +84,7 @@ def _with(filters: dict, **changes) -> str:
 
 templates.env.globals["with_filters"] = _with
 templates.env.filters["render_note"] = notes.render
+templates.env.globals["nav_extra"] = [("/projects", "Projects")]
 templates.env.tests["search"] = lambda value, pattern: re.search(pattern, str(value)) is not None
 
 
@@ -207,6 +208,30 @@ def save_from_popup(request: Request, url: str = Form(""), title: str = Form("")
         db.update(link_id, note=(old + "\n\n" + quote).strip() if quote not in old else old)
     return templates.TemplateResponse(request, "save_popup.html", {
         "saved": {"id": link_id, "new": bool(added)}, "url": url, "title": title})
+
+
+@app.get("/projects", response_class=HTMLResponse)
+def projects_index(request: Request):
+    return templates.TemplateResponse(request, "projects.html", {"projects": projects.all_projects()})
+
+
+@app.get("/projects/{label}", response_class=HTMLResponse)
+def project_page(request: Request, label: str, msg: str = ""):
+    data = projects.page_data(label)
+    if not data["items"]:
+        return _back(msg=f"No items with the label {label}.")
+    return templates.TemplateResponse(request, "project.html", data | {
+        "msg": msg, "ai": enrich.ai_enabled(), "langs": projects.LANGS,
+        "whys": db.why_counts(), "tags": db.tag_counts()})
+
+
+@app.post("/projects/{label}/brief")
+def project_brief(label: str, lang: str = Form("en")):
+    if not enrich.ai_enabled():
+        return RedirectResponse(f"/projects/{label}?" + urlencode({"msg": "AI is off: add an AI key or Ollama first."}),
+                                status_code=303)
+    projects.start_brief(label, lang)
+    return RedirectResponse(f"/projects/{label}", status_code=303)
 
 
 @app.get("/tools", response_class=HTMLResponse)

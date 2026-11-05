@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} · ClosedTabs{% endblock %}
+{% block head %}{% if job and job.state == "running" %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block body %}
+{% include "_nav.html" %}
+<main class="page">
+  <p class="crumbs"><a href="/projects">Projects</a> /</p>
+  <h1>{{ label }}</h1>
+  <p class="muted">{{ links|length }} link{{ "s" if links|length != 1 }} · {{ notes|length + (1 if brief else 0) + older_briefs|length }} note{{ "s" if (notes|length + (1 if brief else 0) + older_briefs|length) != 1 }}{% if commdata %} · {{ commdata|length }} with CommData{% endif %}</p>
+  {% if msg %}<p class="flash">{{ msg }}</p>{% endif %}
+
+  <div class="proj-actions">
+    <a class="btn btn-sm" href="/library?tag={{ label|urlencode }}">Open in library</a>
+    <a class="btn btn-light btn-sm" href="/notes/new?labels={{ label|urlencode }}">📝 New note</a>
+    {% if commdata|length > 1 %}<a class="btn btn-light btn-sm" href="/compare?tag={{ label|urlencode }}">Compare websites</a>{% endif %}
+    {% if commdata %}<a class="btn btn-light btn-sm" href="/export/commdata.csv?tag={{ label|urlencode }}">CSV</a>{% endif %}
+  </div>
+
+  <form class="add add-proj" action="/add" method="post">
+    <textarea name="text" rows="1" placeholder="Add a link (or a quick note) to {{ label }}…" required
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
+    <button class="btn" type="submit">Add</button>
+    <input name="why" list="known-whys" placeholder="Why? Keywords, comma separated">
+    <input type="hidden" name="labels" value="{{ label }}">
+    <label class="check"><input type="checkbox" name="commdata" value="1"><span>with CommData</span></label>
+    <datalist id="known-whys">{% for w, n in whys %}<option value="{{ w }}">{% endfor %}</datalist>
+  </form>
+
+  <section class="box brief">
+    <div class="brief-head">
+      <h3>Brief</h3>
+      {% if job and job.state == "running" %}<span class="muted">✍️ Writing… (this page refreshes by itself)</span>
+      {% else %}
+      <form action="/projects/{{ label|urlencode }}/brief" method="post" class="brief-form">
+        <select name="lang" aria-label="Language">{% for k, v in langs.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+        <button class="btn btn-sm" type="submit" {% if not ai %}disabled title="Needs an AI key or Ollama"{% endif %}>{{ "Write a new brief" if brief else "Write a brief with AI" }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if job and job.state == "error" %}<p class="warn">{{ job.message }}</p>{% endif %}
+    {% if brief %}
+      <p class="muted small"><a href="/links/{{ brief.id }}">{{ brief.title }}</a> · saved as a note (also in Obsidian)</p>
+      <div class="note-body">{{ brief.content|render_note|safe }}</div>
+      {% if older_briefs %}<p class="muted small">Earlier: {% for b in older_briefs %}<a href="/links/{{ b.id }}">{{ b.title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+    {% else %}
+      <p class="muted">The AI reads everything saved for {{ label }} (summaries, your why-keywords and notes, website data) and writes an overview with findings, gaps and next steps. Every point links back to its source.</p>
+    {% endif %}
+  </section>
+
+  <div class="proj-cols">
+    <div>
+      {% if notes %}
+      <section class="box">
+        <h3>Notes</h3>
+        <ul class="plain">{% for n in notes %}<li><a href="/links/{{ n.id }}">📝 {{ n.title }}</a> <span class="muted small">{{ n.created_at|ago }}</span></li>{% endfor %}</ul>
+      </section>
+      {% endif %}
+
+      {% for w, group in groups %}
+      <section class="box">
+        <h3>{% if w == "(no why)" %}<span class="muted">No why yet</span>{% else %}<span class="tag tag-why">{{ w }}</span>{% endif %} <small class="muted">{{ group|length }}</small></h3>
+        <ul class="plain">{% for l in group %}
+          <li><a href="/links/{{ l.id }}">{{ l.title or l.url }}</a> <span class="muted small">{{ l.source }}{% if "commdata" in l.tags %} · CommData{% endif %}</span></li>
+        {% endfor %}</ul>
+      </section>
+      {% endfor %}
+    </div>
+    <aside>
+      {% if insights %}
+      <section class="box">
+        <h3>Competitor snapshot</h3>
+        {% if insights.shared_tools %}<p class="muted small">Common tools</p>
+          <p class="kw">{% for k, c in insights.shared_tools %}<span>{{ k }} <small>{{ c }}/{{ commdata|length }}</small></span>{% endfor %}</p>{% endif %}
+        {% if insights.shared_keywords %}<p class="muted small">Shared keywords</p>
+          <p class="kw">{% for k, c in insights.shared_keywords[:10] %}<span>{{ k }} <small>{{ c }}</small></span>{% endfor %}</p>{% endif %}
+        <p><a href="/compare?tag={{ label|urlencode }}">Full comparison →</a></p>
+      </section>
+      {% endif %}
+      {% if topics %}
+      <section class="box"><h3>Topics</h3>
+        <p class="kw">{% for t, c in topics %}<a href="/library?tag={{ label|urlencode }}&amp;tag={{ ('topic/' ~ t)|urlencode }}"><span>{{ t }} <small>{{ c }}</small></span></a>{% endfor %}</p></section>
+      {% endif %}
+      {% if sources %}
+      <section class="box"><h3>Sources</h3>
+        <ul class="plain">{% for s, c in sources %}<li><a href="/library?tag={{ label|urlencode }}&amp;source={{ s|urlencode }}">{{ s }}</a> <span class="muted small">{{ c }}</span></li>{% endfor %}</ul></section>
+      {% endif %}
+    </aside>
+  </div>
+</main>
+{% endblock %}

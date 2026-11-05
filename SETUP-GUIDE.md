@@ -71,6 +71,10 @@ For longer notes, click **📝 Write a longer note**. Inside a note, write `[[ti
 (or `[[mero.ro]]`) to link to it; each item then shows **Links to / Linked from**. On any item,
 **copy [[link]]** copies a ready-made reference.
 
+**Projects:** every label you give yourself (e.g. `project-delia`) gets a page under **Projects**
+(top menu): its notes, links grouped by *why*, a competitor snapshot, topics and sources, and a
+**Write a brief with AI** button. The brief is saved as a note that links back to its sources.
+
 **Compare competitors:** open a CommData project (sidebar → CommData → project) and click **Compare**.
 You get the websites side by side, plus shared keywords, common tools, and what only one site uses.
 

@@ -56,7 +56,7 @@
     {% set projects_all = own|rejectattr(0, "search", "/")|list %}
     {% call(item) facet("Projects & my labels", "own", projects_all, none, none) %}
       {% set t, n = item %}
-      <a href="{{ with_filters(filters, tag=('-' if t in tag else '+', t)) }}" class="side-link {% if t in tag %}active{% endif %}">{{ t }} <span>{{ n }}</span></a>
+      <span class="side-row"><a href="{{ with_filters(filters, tag=('-' if t in tag else '+', t)) }}" class="side-link {% if t in tag %}active{% endif %}">{{ t }} <span>{{ n }}</span></a><a class="side-go" href="/projects/{{ t|urlencode }}" title="Open the project page">↗</a></span>
     {% endcall %}
 
     {% call(item) facet("Sources", "source", sources, none, none) %}

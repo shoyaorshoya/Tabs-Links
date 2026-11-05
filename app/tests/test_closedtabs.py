@@ -707,3 +707,67 @@ def test_bookmarklet_popup_and_cross_site_guard(monkeypatch):
     assert r.status_code == 403 and db.count() == 1
     r = c.post(f"/links/{link['id']}/delete", headers={"Origin": "https://evil.example"})
     assert r.status_code == 403 and db.count() == 1
+
+
+def test_project_pages_and_brief(monkeypatch):
+    import time as _t
+    from fastapi.testclient import TestClient
+    from closedtabs import projects, seo, web
+
+    monkeypatch.setattr(enrich.worker, "submit", lambda i: None)
+    c = TestClient(web.app)
+    a, _ = db.add("https://a.example/", why=["competitor"])
+    db.update(a, title="Salon A", summary="Salon A summary.", tags=["project-delia", "commdata", "topic/pmu"],
+              seo=seo.analyze(SITE, "https://a.example/"), want_commdata=1, status="done")
+    b, _ = db.add("https://b.example/", why=["competitor"])
+    db.update(b, title="Salon B", tags=["project-delia", "commdata"], seo=seo.analyze(SITE, "https://b.example/"),
+              want_commdata=1, status="done")
+    d, _ = db.add("https://c.example/")
+    db.update(d, title="Untitled why", tags=["project-delia"], status="done")
+    n = db.add_note("Trust signals matter.", title="Idea", why=["insight"], tags=["project-delia"])
+    db.add("https://other.example/")
+
+    ps = projects.all_projects()
+    assert ps[0]["label"] == "project-delia" and (ps[0]["links"], ps[0]["notes"], ps[0]["commdata"]) == (3, 1, 2)
+    assert "competitor" in ps[0]["top_why"]
+    assert "project-delia" in c.get("/projects").text
+
+    page = c.get("/projects/project-delia").text
+    assert "Salon A" in page and "No why yet" in page and "Competitor snapshot" in page and "Idea" in page
+    assert "Write a brief with AI" in page and "disabled" in page                    # AI off
+    r = c.post("/projects/project-delia/brief", data={"lang": "hu"}, follow_redirects=False)
+    assert "AI+is+off" in r.headers["location"]
+
+    # with AI: the brief is written in the background and saved as a note
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    seen = {}
+
+    def fake_write(system, prompt, max_tokens=4000):
+        seen["prompt"] = prompt
+        return f"Overview\nSalons compete on trust [[#{a}]].\n\nNext steps\nInterview owners [[#{n}]]."
+
+    monkeypatch.setattr(providers, "write", fake_write)
+    c.post("/projects/project-delia/brief", data={"lang": "hu"})
+    for _ in range(50):
+        if "project-delia" not in projects.brief_jobs:
+            break
+        _t.sleep(0.05)
+    assert "Write in Hungarian" in seen["prompt"] and f"[[#{a}]]" in seen["prompt"]
+    assert "common tools:" in seen["prompt"] and "Google Analytics 4 (2/2)" in seen["prompt"]
+    brief = [x for x in db.search("", kind="note", why="brief")][0]
+    assert brief["title"].startswith("Brief: project-delia") and "project-delia" in brief["tags"]
+    page = c.get("/projects/project-delia").text
+    assert "Salons compete on trust" in page and f'href="/links/{a}"' in page and "Write a new brief" in page
+    assert db.backlinks(db.get(a))[0]["id"] == brief["id"]                          # brief links to its sources
+
+    # errors are shown, not swallowed
+    def boom(*a, **k):
+        raise providers.LabelError("Your AI provider account is out of credits.")
+    monkeypatch.setattr(providers, "write", boom)
+    projects.brief_jobs.clear()
+    c.post("/projects/project-delia/brief", data={"lang": "en"})
+    for _ in range(50):
+        if projects.brief_jobs.get("project-delia", {}).get("state") == "error":
+            break
+        _t.sleep(0.05)
+    assert "out of credits" in c.get("/projects/project-delia").text
